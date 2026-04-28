@@ -59,15 +59,31 @@ def _build_Xy(sdf_path: str | Path, value_prop: str) -> tuple[np.ndarray, np.nda
 
 
 def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> dict:
-    """Fit RidgeCV, save coefficients to JSON, return stats dict."""
+    """Fit RidgeCV with iterative 3σ outlier removal, save coefficients to JSON."""
     alphas = np.logspace(-3, 4, 50)
-    model = make_pipeline(
-        StandardScaler(with_mean=False),   # sparse-ish, keep zeros meaningful
-        RidgeCV(alphas=alphas, cv=5, fit_intercept=True),
-    )
-    model.fit(X, y)
 
-    # Cross-validated performance
+    def _make_pipeline():
+        return make_pipeline(
+            StandardScaler(with_mean=False),
+            RidgeCV(alphas=alphas, cv=5, fit_intercept=True),
+        )
+
+    # ── Iterative 3σ outlier removal (matches Naef & Acree paper) ────────────
+    # Fit once, identify outliers (|residual| > 3 × RMSE), remove, refit once.
+    mask = np.ones(len(y), dtype=bool)
+    model = _make_pipeline()
+    model.fit(X, y)
+    residuals = y - model.predict(X)
+    sigma = residuals.std()
+    mask = np.abs(residuals) <= 3 * sigma
+    n_removed = int((~mask).sum())
+    if n_removed > 0:
+        print(f"  [{target}] removing {n_removed} outliers (>3*sigma={sigma:.3f})")
+        X, y = X[mask], y[mask]
+        model = _make_pipeline()
+        model.fit(X, y)
+
+    # Cross-validated performance (on cleaned dataset)
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     y_cv = cross_val_predict(model, X, y, cv=kf)
     r2   = r2_score(y, y_cv)
@@ -166,7 +182,7 @@ class PartitionCalculator:
     def _predict_mol(self, mol) -> dict:
         feat = compute_features(mol)
         if feat is None:
-            return {"status": "error", "error": "molecule has <2 backbone atoms"}
+            return {"status": "error", "error": "molecule has fewer than 2 heavy atoms"}
         logKow = _predict_from_json(feat, self._kow)
         logKoa = _predict_from_json(feat, self._koa)
         logKaw = logKow - logKoa

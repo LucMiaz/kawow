@@ -46,7 +46,8 @@ class TestAtomTypes:
         from kawow.atom_types import SPECIAL_GROUP_LABELS
         assert "SG_HB_INTRAMOL" in SPECIAL_GROUP_LABELS
         assert "SG_ALKANE" in SPECIAL_GROUP_LABELS
-        assert len(SPECIAL_GROUP_LABELS) == 5
+        assert "SG_EXTRA_OH" in SPECIAL_GROUP_LABELS
+        assert len(SPECIAL_GROUP_LABELS) == 6
 
 
 # ── features ──────────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ class TestComputeFeatures:
     def test_nonneg(self):
         """All feature values must be non-negative (counts)."""
         from kawow import compute_features
-        for smi in ["CCCCO", "c1ccccc1", "CC(=O)O", "ClCCl"]:
+        for smi in ["CCCCO", "c1ccccc1", "CC(=O)O", "ClCCCl"]:
             mol = Chem.MolFromSmiles(smi)
             vec = compute_features(mol)
             assert vec is not None
@@ -87,11 +88,11 @@ class TestComputeFeatures:
 
     def test_alkane_flag(self):
         from kawow import compute_features, FEATURE_LABELS
-        mol = Chem.MolFromSmiles("CCCCCC")  # hexane
+        mol = Chem.MolFromSmiles("CCCCCC")  # hexane (6 C atoms)
         vec = compute_features(mol)
         assert vec is not None
         idx = FEATURE_LABELS.index("SG_ALKANE")
-        assert vec[idx] == pytest.approx(1.0), "Hexane should set SG_ALKANE"
+        assert vec[idx] == pytest.approx(6.0), "Hexane should set SG_ALKANE to 6 (C count)"
 
     def test_nonalkane_no_flag(self):
         from kawow import compute_features, FEATURE_LABELS
@@ -108,6 +109,14 @@ class TestComputeFeatures:
         assert vec is not None
         idx = FEATURE_LABELS.index("SG_EXTRA_COOH")
         assert vec[idx] == pytest.approx(1.0), "Malonic acid: 1 extra COOH"
+
+    def test_extra_oh(self):
+        from kawow import compute_features, FEATURE_LABELS
+        mol = Chem.MolFromSmiles("OCC(O)CO")   # glycerol (3 OH)
+        vec = compute_features(mol)
+        assert vec is not None
+        idx = FEATURE_LABELS.index("SG_EXTRA_OH")
+        assert vec[idx] == pytest.approx(2.0), "Glycerol: 2 extra OH (3 total - 1)"
 
 
 # ── io ────────────────────────────────────────────────────────────────────────
@@ -256,6 +265,6 @@ class TestPackageImports:
         for name in kawow.__all__:
             assert hasattr(kawow, name), f"Missing export: {name}"
 
-    def test_n_features_77(self):
+    def test_n_features_78(self):
         from kawow import N_FEATURES
-        assert N_FEATURES == 77
+        assert N_FEATURES == 78

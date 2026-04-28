@@ -87,6 +87,7 @@ SPECIAL_GROUP_LABELS: list[str] = [
     "SG_ALKANE",
     "SG_UNSAT_HC",
     "SG_EXTRA_COOH",
+    "SG_EXTRA_OH",
     "SG_ENDOCYCLIC_CC",
 ]
 

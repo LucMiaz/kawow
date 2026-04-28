@@ -23,6 +23,7 @@ from .atom_types import (
 
 # ── SMARTS helpers for special groups ────────────────────────────────────────
 _COOH_SMARTS = Chem.MolFromSmarts("C(=O)[OH]")
+_OH_SMARTS   = Chem.MolFromSmarts("[OH]")
 
 
 def _assign_atom_types(mol: Chem.Mol) -> list[int | None]:
@@ -48,17 +49,21 @@ def _assign_atom_types(mol: Chem.Mol) -> list[int | None]:
 
 
 def _count_intramol_hbonds(mol: Chem.Mol) -> int:
-    """Count intramolecular H-bond donor/acceptor atom pairs within 5 bonds."""
+    """Count intramolecular H-bond donor/acceptor atom pairs within 5 bonds.
+
+    Donor  : acidic H bound to O, N or S
+    Acceptor: O, N or F (not already a donor)
+    """
     try:
         mol_h = Chem.AddHs(mol)
         donor_atoms = [
             a.GetIdx() for a in mol_h.GetAtoms()
-            if a.GetAtomicNum() in (7, 8, 15, 16)
+            if a.GetAtomicNum() in (7, 8, 16)
             and any(nb.GetAtomicNum() == 1 for nb in a.GetNeighbors())
         ]
         acceptor_atoms = [
             a.GetIdx() for a in mol_h.GetAtoms()
-            if a.GetAtomicNum() in (7, 8)
+            if a.GetAtomicNum() in (7, 8, 9)   # N, O or F
             and a.GetIdx() not in donor_atoms
         ]
         if not donor_atoms or not acceptor_atoms:
@@ -93,10 +98,22 @@ def _is_pure_hc(mol: Chem.Mol) -> tuple[bool, bool]:
     return False, False
 
 
+def _count_hc_carbons(mol: Chem.Mol) -> int:
+    """Return the number of carbon atoms in the molecule (pure-HC check done by caller)."""
+    return sum(1 for a in mol.GetAtoms() if a.GetAtomicNum() == 6)
+
+
 def _count_extra_cooh(mol: Chem.Mol) -> int:
     if _COOH_SMARTS is None:
         return 0
     return max(0, len(mol.GetSubstructMatches(_COOH_SMARTS)) - 1)
+
+
+def _count_extra_oh(mol: Chem.Mol) -> int:
+    """Count hydroxyl groups beyond the first (the (COH)n special group, n>1)."""
+    if _OH_SMARTS is None:
+        return 0
+    return max(0, len(mol.GetSubstructMatches(_OH_SMARTS)) - 1)
 
 
 def _count_endocyclic_cc(mol: Chem.Mol) -> int:
@@ -117,14 +134,20 @@ def compute_features(mol: Chem.Mol) -> np.ndarray | None:
       [0..N_ATOM_TYPES-1]  — Crippen atom-type occurrence counts
       [N_ATOM_TYPES..]     — special group values
 
-    Returns None if the molecule has fewer than 2 backbone heavy atoms.
+    Returns None if the molecule has fewer than 2 backbone heavy atoms
+    (backbone atom = heavy atom bound to ≥2 heavy neighbours).
     """
-    # Backbone atoms: bound to ≥ 2 heavy neighbours
-    backbone = [
-        a for a in mol.GetAtoms()
-        if sum(1 for nb in a.GetNeighbors() if nb.GetAtomicNum() > 1) >= 2
-    ]
-    if len(backbone) < 1:
+    # Backbone atoms: heavy atoms bound to ≥2 neighbours (any atom, including H).
+    # Per Naef: "backbone atoms are characterised in that they are bound to at
+    # least two covalently bound neighbour atoms" — i.e. total degree ≥ 2.
+    # This correctly rejects single-heavy-atom molecules (CH4, CHCl3, HCN)
+    # while accepting CH3COOH (both carbons qualify: CH3 has degree 4, C=O has degree 3).
+    mol_h = Chem.AddHs(mol)
+    n_backbone = sum(
+        1 for a in mol_h.GetAtoms()
+        if a.GetAtomicNum() > 1 and a.GetDegree() >= 2
+    )
+    if n_backbone < 2:
         return None
 
     vec = np.zeros(N_FEATURES, dtype=np.float32)
@@ -139,10 +162,13 @@ def compute_features(mol: Chem.Mol) -> np.ndarray | None:
     n_sg = N_ATOM_TYPES
     vec[n_sg + 0] = _count_intramol_hbonds(mol)
     is_alkane, is_unsat_hc = _is_pure_hc(mol)
-    vec[n_sg + 1] = float(is_alkane)
-    vec[n_sg + 2] = float(is_unsat_hc)
+    # Naef: Alkane/Unsaturated HC are per-C-atom counts, not binary flags
+    n_c = _count_hc_carbons(mol) if (is_alkane or is_unsat_hc) else 0
+    vec[n_sg + 1] = float(n_c) if is_alkane   else 0.0
+    vec[n_sg + 2] = float(n_c) if is_unsat_hc else 0.0
     vec[n_sg + 3] = _count_extra_cooh(mol)
-    vec[n_sg + 4] = _count_endocyclic_cc(mol)
+    vec[n_sg + 4] = _count_extra_oh(mol)
+    vec[n_sg + 5] = _count_endocyclic_cc(mol)
 
     return vec
 

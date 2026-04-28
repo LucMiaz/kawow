@@ -127,8 +127,7 @@ Each molecule is represented by **77 features**:
 
 ## Reference
 
-R. Naef, W.E. Acree Jr., *Liquids* **4**(1):231–260, 2024.
-DOI: [10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
+Naef, Rudolf, and William E. Acree, Jr. 2024. "Calculation of the Three Partition Coefficients logPow, logKoa and logKaw of Organic Molecules at Standard Conditions at Once by Means of a Generally Applicable Group-Additivity Method" *Liquids* 4, no. 1: 231-260. [10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
 
 ## License
 

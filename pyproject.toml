@@ -5,7 +5,7 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "kawow"
 version = "0.1.0"
-description = "Group-additivity prediction of logKow, logKoa and logKaw from molecular structure"
+description = "Group-additivity prediction of logKow, logKoa and logKaw from molecular structure based on [Naef & Acree 2024](https://doi.org/10.3390/liquids4010011)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
