@@ -1,0 +1,26 @@
+version: 2
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.11"
+
+  jobs:
+    post_install:
+      # RDKit is not on PyPI under the 'rdkit' package on all platforms;
+      # install via conda on RTD.
+      - conda install -y -c conda-forge rdkit
+
+conda:
+  environment: docs/rtd-environment.yml
+
+sphinx:
+  configuration: docs/conf.py
+  fail_on_warning: false
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
