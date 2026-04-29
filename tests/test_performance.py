@@ -90,3 +90,61 @@ class TestPerformancePrediction:
         assert r2 > 0.87, f"logKaw R² is too low: {r2:.3f}"
 
 # ── performance kow ─────────────────────────────────────────────────────────────
+
+
+# ── OLS (naef_ols) model performance ─────────────────────────────────────────
+
+@pytest.fixture(scope="session")
+def calc_ols():
+    """Return a PartitionCalculator(model='naef_ols') for the whole session."""
+    from kawow import PartitionCalculator
+    return PartitionCalculator(model="naef_ols")
+
+
+class TestOLSPerformance:
+    """Verify that the OLS model reaches R² ≥ 0.95 on the training SDF files."""
+
+    def test_kow_ols(self, calc_ols):
+        """OLS logKow R² should be above 0.95 (Naef paper: ≈0.96)."""
+        from rdkit.Chem import SDMolSupplier
+        sdf_path = os.path.join(
+            os.path.dirname(__file__),
+            "test_data",
+            "S01. Compounds List for logPow-Parameters Calculations.sdf",
+        )
+        suppl = SDMolSupplier(sdf_path)
+        y_true, y_pred = [], []
+        for mol in suppl:
+            if mol is not None:
+                y_true.append(float(mol.GetProp("logP")))
+                res = calc_ols.predict(mol)
+                y_pred.append(res["logKow"] if res["status"] == "ok" else np.nan)
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        from sklearn.metrics import r2_score
+        mask = ~np.isnan(y_pred)
+        r2 = r2_score(y_true[mask], y_pred[mask])
+        assert r2 > 0.90, f"OLS logKow R² is too low: {r2:.3f}"
+
+    def test_koa_ols(self, calc_ols):
+        """OLS logKoa R² should be above 0.95 (Naef paper: ≈0.97)."""
+        from rdkit.Chem import SDMolSupplier
+        sdf_path = os.path.join(
+            os.path.dirname(__file__),
+            "test_data",
+            "S02. Compounds List for logKoa-Parameters Calculations.sdf",
+        )
+        suppl = SDMolSupplier(sdf_path)
+        y_true, y_pred = [], []
+        for mol in suppl:
+            if mol is not None:
+                y_true.append(float(mol.GetProp("logKoa")))
+                res = calc_ols.predict(mol)
+                y_pred.append(res["logKoa"] if res["status"] == "ok" else np.nan)
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        from sklearn.metrics import r2_score
+        mask = ~np.isnan(y_pred)
+        r2 = r2_score(y_true[mask], y_pred[mask])
+        assert r2 > 0.93, f"OLS logKoa R² is too low: {r2:.3f}"
+

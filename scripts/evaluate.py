@@ -11,10 +11,11 @@ Tests:
 
 Usage
 -----
-    cd c:\\Users\\luc\\git\\kawow
-    C:\\Users\\luc\\Miniforge3\\envs\\chem\\python.exe scripts\\evaluate.py
+    cd ~/kawow
+    python scripts/evaluate.py
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -32,12 +33,11 @@ from kawow.io import _read_sdf
 from kawow.features import compute_features
 from kawow.model import PartitionCalculator, _build_Xy
 
-SDF_DIR = Path(
-    r"c:\Users\luc\kDrive\Documents\WORK\PhD\vPM-vPB gap\data\liquids-04-00011-s001"
-)
-S01 = SDF_DIR / "S01. Compounds List for logPow-Parameters Calculations.sdf"
-S02 = SDF_DIR / "S02. Compounds List for logKoa-Parameters Calculations.sdf"
-S03 = SDF_DIR / "S03. Compounds List with exp logKaw Data.sdf"
+MAIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SDF_DIR = os.path.join(MAIN_DIR, "tests", "test_data")
+S01 = os.path.join(SDF_DIR, "S01. Compounds List for logPow-Parameters Calculations.sdf")
+S02 = os.path.join(SDF_DIR, "S02. Compounds List for logKoa-Parameters Calculations.sdf")
+S03 = os.path.join(SDF_DIR, "S03. Compounds List with exp logKaw Data.sdf")
 
 SEP = "=" * 60
 

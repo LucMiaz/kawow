@@ -1,12 +1,19 @@
 """
 model.py
 ========
-Ridge-regression model for group-additivity prediction of logKow and logKoa.
+Group-additivity models for prediction of logKow and logKoa.
 
-The additive structure (descriptor = sum of atom/group contributions + const)
-is exactly a linear model with no feature interactions, so Ridge regression
-with L2 regularisation is the correct statistical analogue of Naef's
-Gauss-Seidel parameter fitting.
+Two model variants are available:
+
+``"kawow"`` (default)
+    Ridge regression (L2 regularisation) re-fitted on the Naef & Acree (2024)
+    SDF training data.  Stored in ``kawow/data/logk*_model.json``.
+
+``"naef_ols"`` (alias ``"naef"``)
+    Ordinary least-squares fit (no regularisation) on the same training data,
+    matching Naef's Gauss-Seidel method.  Produces statistics close to those
+    reported in the paper (R² ≈ 0.96 / 0.97).
+    Stored in ``kawow/data/logk*_ols_model.json``.
 
 Training data
 -------------
@@ -37,8 +44,16 @@ from .io import _read_sdf
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-_MODEL_LOGKOW = DATA_DIR / "logkow_model.json"
-_MODEL_LOGKOA = DATA_DIR / "logkoa_model.json"
+_MODEL_LOGKOW     = DATA_DIR / "logkow_model.json"
+_MODEL_LOGKOA     = DATA_DIR / "logkoa_model.json"
+_MODEL_LOGKOW_OLS = DATA_DIR / "logkow_ols_model.json"
+_MODEL_LOGKOA_OLS = DATA_DIR / "logkoa_ols_model.json"
+
+_MODEL_FILES = {
+    "kawow":    (_MODEL_LOGKOW,     _MODEL_LOGKOA),
+    "naef_ols": (_MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS),
+    "naef":     (_MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS),
+}
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -102,6 +117,7 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
 
     result = {
         "target": target,
+        "method": "ridge",
         "n_train": len(y),
         "alpha": float(ridge.alpha_),
         "r2_cv": round(r2, 4),
@@ -111,8 +127,56 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
     }
     with open(out_path, "w") as f:
         json.dump(result, f, indent=2)
-    print(f"  [{target}] n={len(y)}  R²={r2:.4f}  RMSE={rmse:.4f}  "
-          f"alpha={ridge.alpha_:.4g}  → {out_path.name}")
+    print(f"  [{target}] n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  "
+          f"alpha={ridge.alpha_:.4g}  \u2192 {out_path.name}")
+    return result
+
+
+def _fit_and_save_ols(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> dict:
+    """Fit OLS (unregularized) with 3\u03c3 outlier removal, matching Naef's Gauss-Seidel method."""
+
+    def _fit_ols(X_: np.ndarray, y_: np.ndarray):
+        """Return (coefs, intercept) via lstsq on augmented matrix."""
+        # Augment X with a bias column for intercept
+        X_aug = np.hstack([X_.astype(np.float64), np.ones((len(X_), 1))])
+        result, _, _, _ = np.linalg.lstsq(X_aug, y_.astype(np.float64), rcond=None)
+        return result[:-1], float(result[-1])  # coefs, intercept
+
+    # Initial fit
+    coefs, intercept = _fit_ols(X, y)
+    residuals = y.astype(np.float64) - (X.astype(np.float64) @ coefs + intercept)
+    sigma = residuals.std()
+    mask = np.abs(residuals) <= 3 * sigma
+    n_removed = int((~mask).sum())
+    if n_removed > 0:
+        print(f"  [{target}] OLS: removing {n_removed} outliers (>3*sigma={sigma:.3f})")
+        X, y = X[mask], y[mask]
+        coefs, intercept = _fit_ols(X, y)
+
+    # Cross-validated performance (leave-every-5th-out, matching Naef's 10-fold cv)
+    from sklearn.model_selection import KFold
+    from sklearn.metrics import r2_score, mean_squared_error
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    y_cv = np.empty(len(y))
+    for train_idx, test_idx in kf.split(X):
+        c, b = _fit_ols(X[train_idx], y[train_idx])
+        y_cv[test_idx] = X[test_idx].astype(np.float64) @ c + b
+    r2   = r2_score(y, y_cv)
+    rmse = float(mean_squared_error(y, y_cv) ** 0.5)
+
+    result = {
+        "target": target,
+        "method": "ols",
+        "n_train": len(y),
+        "alpha": 0.0,
+        "r2_cv": round(r2, 4),
+        "rmse_cv": round(rmse, 4),
+        "intercept": intercept,
+        "weights": {label: float(coefs[i]) for i, label in enumerate(FEATURE_LABELS)},
+    }
+    with open(out_path, "w") as f:
+        json.dump(result, f, indent=2)
+    print(f"  [{target}] OLS  n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  \u2192 {out_path.name}")
     return result
 
 
@@ -123,23 +187,36 @@ def fit(
     sdf_logkoa: str | Path,
     logkow_prop: str = "logP",
     logkoa_prop: str = "logKoa",
+    method: str = "ridge",
 ) -> None:
     """
-    Fit Ridge models on S01 (logKow) and S02 (logKoa) SDF files and save
+    Fit models on S01 (logKow) and S02 (logKoa) SDF files and save
     coefficients to kawow/data/*.json.
 
     Parameters
     ----------
     sdf_logkow : path to SDF file with logKow data (tag name in logkow_prop)
     sdf_logkoa : path to SDF file with logKoa data (tag name in logkoa_prop)
+    method     : ``'ridge'`` (default) for L2-regularised Ridge regression, or
+                 ``'ols'`` for unregularised OLS matching Naef's Gauss-Seidel method.
     """
-    print("Fitting logKow model …")
-    X_kow, y_kow, _ = _build_Xy(sdf_logkow, logkow_prop)
-    _fit_and_save(X_kow, y_kow, _MODEL_LOGKOW, "logKow")
+    if method not in ("ridge", "ols"):
+        raise ValueError(f"method must be 'ridge' or 'ols', got {method!r}")
 
-    print("Fitting logKoa model …")
+    if method == "ridge":
+        _saver = _fit_and_save
+        kow_path, koa_path = _MODEL_LOGKOW, _MODEL_LOGKOA
+    else:
+        _saver = _fit_and_save_ols
+        kow_path, koa_path = _MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS
+
+    print(f"Fitting logKow model ({method}) …")
+    X_kow, y_kow, _ = _build_Xy(sdf_logkow, logkow_prop)
+    _saver(X_kow, y_kow, kow_path, "logKow")
+
+    print(f"Fitting logKoa model ({method}) …")
     X_koa, y_koa, _ = _build_Xy(sdf_logkoa, logkoa_prop)
-    _fit_and_save(X_koa, y_koa, _MODEL_LOGKOA, "logKoa")
+    _saver(X_koa, y_koa, koa_path, "logKoa")
     print("Done.")
 
 
@@ -165,19 +242,37 @@ class PartitionCalculator:
     Predict logKow, logKoa, logKaw from molecular structure using the
     Naef group-additivity method (re-fitted on S01/S02 SDF training data).
 
+    Parameters
+    ----------
+    model : str, optional
+        Which fitted model to use for predictions:
+
+        * ``'kawow'`` (default) — Ridge regression (L2-regularised).
+        * ``'naef_ols'`` or ``'naef'`` — OLS re-fit matching Naef's
+          Gauss-Seidel method. Run ``kawow.fit(..., method='ols')`` first to
+          generate the required JSON files.
+
     Usage
     -----
     >>> from kawow import PartitionCalculator
-    >>> calc = PartitionCalculator()
+    >>> calc = PartitionCalculator()                    # Ridge (default)
+    >>> calc_naef = PartitionCalculator(model='naef_ols')  # OLS
     >>> calc.predict("CCCCO")            # 1-butanol
     {'logKow': 0.88, 'logKoa': 4.12, 'logKaw': -3.24, 'status': 'ok'}
     >>> calc.predict_batch(["CCCCO", "c1ccccc1"])
     [{'smiles': ..., 'logKow': ..., ...}, ...]
     """
 
-    def __init__(self) -> None:
-        self._kow = _load_json(_MODEL_LOGKOW)
-        self._koa = _load_json(_MODEL_LOGKOA)
+    def __init__(self, model: str = "kawow") -> None:
+        if model not in _MODEL_FILES:
+            raise ValueError(
+                f"Unknown model {model!r}. "
+                f"Valid options: {list(_MODEL_FILES)}"
+            )
+        self._model_name = model
+        kow_path, koa_path = _MODEL_FILES[model]
+        self._kow = _load_json(kow_path)
+        self._koa = _load_json(koa_path)
 
     def _predict_mol(self, mol) -> dict:
         feat = compute_features(mol)
@@ -242,6 +337,7 @@ class PartitionCalculator:
     def model_info(self) -> dict:
         """Return training statistics for both fitted models."""
         return {
+            "model": self._model_name,
             "logKow": {k: v for k, v in self._kow.items() if k != "weights"},
             "logKoa": {k: v for k, v in self._koa.items() if k != "weights"},
         }
@@ -252,6 +348,7 @@ class PartitionCalculator:
         sdf_logkoa: str | Path,
         logkow_prop: str = "logP",
         logkoa_prop: str = "logKoa",
+        method: str = "ridge",
     ) -> None:
         """Fit and save models (calls module-level :func:`fit`)."""
-        fit(sdf_logkow, sdf_logkoa, logkow_prop, logkoa_prop)
+        fit(sdf_logkow, sdf_logkoa, logkow_prop, logkoa_prop, method=method)
