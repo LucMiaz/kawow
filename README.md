@@ -10,6 +10,25 @@ Group-additivity prediction of **log*K*ow**, **log*K*oa**, and **log*K*aw** from
 
 *Kawow* implements the Naef & Acree (2024) group-additivity scheme using RDKit SMARTS pattern matching. Two model families are available depending on how much transparency or accuracy is required.
 
+### Flagging criteria used in outputs
+
+`run_models(...)` returns B/vB and M/vM flags derived from predicted partition values:
+
+- `B`: `logKoa >= 6` and `logKow >= 2`
+- `vB`: `logKoa >= 6` and `logKow >= 5`
+
+based on `doi:10.1126/science.1138275`.
+
+Mobility is computed via an estimated sorption relation:
+
+- `logKoc_est = logKow - 0.4`
+- `M`: `logKoc_est <= 4.5`
+- `vM`: `logKoc_est <= 3.5`
+
+following UBA drinking-water source protection guidance:
+
+- https://www.umweltbundesamt.de/en/publikationen/protecting-the-sources-of-our-drinking-water-the
+
 ---
 
 ## Installation

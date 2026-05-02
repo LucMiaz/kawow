@@ -73,51 +73,49 @@ _AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "mqg")
 def _classify_partition(
     logkow: float,
     logkoa: float,
-    b_threshold: float = 5.0,
-    m_threshold: float = 4.9,
-    p_proxy_koa_threshold: float = 6.0,
+    b_logkow_threshold: float = 2.0,
+    vb_logkow_threshold: float = 5.0,
+    b_logkoa_threshold: float = 6.0,
+    logkoc_from_kow_offset: float = 0.4,
+    m_logkoc_threshold: float = 4.5,
+    vm_logkoc_threshold: float = 3.5,
 ) -> dict[str, Any]:
-    """Classify B/M plus a P-proxy flag from predicted partition coefficients.
+    """Classify B/vB and M/vM from predicted partition coefficients.
 
     Notes
     -----
-    - ``is_B`` follows the threshold used in the Naef/pgap workflow.
-    - ``is_M`` uses the common cutoff derived from Koc = 0.41*Kow.
-    - ``is_P_proxy`` is a pragmatic screen based on ``logKoa < 6`` used in
-      the pgap visualisation context (not a full persistence assessment).
+    - B and vB follow: logKoa >= 6 plus logKow >= 2 (B) or >= 5 (vB)
+      as used in Science 2006 (doi:10.1126/science.1138275).
+    - Mobility classes use an estimated logKoc from logKow:
+      logKoc_est = logKow - 0.4, then M if logKoc_est <= 4.5 and
+      vM if logKoc_est <= 3.5 (UBA drinking-water source protection guidance).
     """
-    is_B = bool(logkow > b_threshold)
-    is_M = bool(logkow <= m_threshold)
-    is_P_proxy = bool(logkoa < p_proxy_koa_threshold)
-    is_P_gap = bool(is_B and is_P_proxy)
+    logkoc_est = float(logkow - logkoc_from_kow_offset)
+    is_B = bool((logkoa >= b_logkoa_threshold) and (logkow >= b_logkow_threshold))
+    is_vB = bool((logkoa >= b_logkoa_threshold) and (logkow >= vb_logkow_threshold))
+    is_M = bool(logkoc_est <= m_logkoc_threshold)
+    is_vM = bool(logkoc_est <= vm_logkoc_threshold)
 
-    if is_B:
-        bm_class = "B"
-    elif is_M:
-        bm_class = "M"
-    else:
-        bm_class = "intermediate"
-
-    if is_P_gap:
-        pb_class = "P-gap"
-    elif is_B:
-        pb_class = "B"
-    elif is_P_proxy:
-        pb_class = "P-proxy"
-    else:
-        pb_class = "none"
+    b_class = "vB" if is_vB else ("B" if is_B else "non-B")
+    m_class = "vM" if is_vM else ("M" if is_M else "non-M")
 
     return {
         "is_B": is_B,
+        "is_vB": is_vB,
         "is_M": is_M,
-        "is_P_proxy": is_P_proxy,
-        "is_P_gap": is_P_gap,
-        "bm_class": bm_class,
-        "pb_class": pb_class,
+        "is_vM": is_vM,
+        "logKoc_est": logkoc_est,
+        "b_class": b_class,
+        "m_class": m_class,
+        "bm_class": b_class,
+        "pb_class": m_class,
         "thresholds": {
-            "B_logKow_gt": float(b_threshold),
-            "M_logKow_lte": float(m_threshold),
-            "P_proxy_logKoa_lt": float(p_proxy_koa_threshold),
+            "B_logKoa_gte": float(b_logkoa_threshold),
+            "B_logKow_gte": float(b_logkow_threshold),
+            "vB_logKow_gte": float(vb_logkow_threshold),
+            "logKoc_est_from_logKow_offset": float(logkoc_from_kow_offset),
+            "M_logKoc_est_lte": float(m_logkoc_threshold),
+            "vM_logKoc_est_lte": float(vm_logkoc_threshold),
         },
     }
 
