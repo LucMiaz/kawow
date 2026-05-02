@@ -26,6 +26,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 # Allow running from repo root without install
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from kawow import MQGPartitionCalculator  # noqa: E402
 from kawow.smarts_model import NaefAcreePartitionCalculator  # noqa: E402
 
 RDLogger.DisableLog("rdApp.*")
@@ -59,6 +60,13 @@ def _predict_partitions(calc: NaefAcreePartitionCalculator, mol: Chem.Mol) -> di
             if isinstance(value, dict) and "logKow" in value and "logKoa" in value:
                 return {"logKow": float(value["logKow"]), "logKoa": float(value["logKoa"])}
     raise RuntimeError("Could not extract logKow/logKoa from SMARTS model output")
+
+
+def _predict_partitions_mqg(calc: MQGPartitionCalculator, mol: Chem.Mol) -> dict[str, float]:
+    out = calc.predict(mol, fmt="mol")
+    if isinstance(out, dict) and "logKow" in out and "logKoa" in out:
+        return {"logKow": float(out["logKow"]), "logKoa": float(out["logKoa"])}
+    raise RuntimeError("Could not extract logKow/logKoa from MQG model output")
 
 
 def _load_endpoint_sdf(sdf_path: Path, exp_prop: str) -> list[dict[str, object]]:
@@ -296,6 +304,52 @@ def main() -> None:
         ]
     )
 
+    mqg_calc = MQGPartitionCalculator()
+
+    s01_rows_q = _load_endpoint_sdf(s01_path, args.s01_kow_prop)
+    for row in s01_rows_q:
+        try:
+            pred = _predict_partitions_mqg(mqg_calc, row["mol"])
+            row["logKow_mqg"] = pred["logKow"]
+        except Exception:
+            row["logKow_mqg"] = np.nan
+
+    s02_rows_q = _load_endpoint_sdf(s02_path, args.s02_koa_prop)
+    for row in s02_rows_q:
+        try:
+            pred = _predict_partitions_mqg(mqg_calc, row["mol"])
+            row["logKoa_mqg"] = pred["logKoa"]
+        except Exception:
+            row["logKoa_mqg"] = np.nan
+
+    df_s01_q = pd.DataFrame(
+        [
+            {
+                "name": r["name"],
+                "name_norm": r["name_norm"],
+                "inchikey": r["inchikey"],
+                "smiles": r["smiles"],
+                "logKow_exp_s01": r["exp_value"],
+                "logKow_mqg": r["logKow_mqg"],
+            }
+            for r in s01_rows_q
+        ]
+    )
+
+    df_s02_q = pd.DataFrame(
+        [
+            {
+                "name": r["name"],
+                "name_norm": r["name_norm"],
+                "inchikey": r["inchikey"],
+                "smiles": r["smiles"],
+                "logKoa_exp_s02": r["exp_value"],
+                "logKoa_mqg": r["logKoa_mqg"],
+            }
+            for r in s02_rows_q
+        ]
+    )
+
     # Load Excel and detect best sheet/columns for logKow comparison
     df_xlsx = pd.read_csv(xlsx_path)
     col_inchi = "InChI"
@@ -367,6 +421,8 @@ def main() -> None:
     df_s02.to_csv(out_dir / "s02_smarts_vs_experimental.csv", index=False)
     df_s01_m.to_csv(out_dir / "s01_smarts_m_vs_experimental.csv", index=False)
     df_s02_m.to_csv(out_dir / "s02_smarts_m_vs_experimental.csv", index=False)
+    df_s01_q.to_csv(out_dir / "s01_mqg_vs_experimental.csv", index=False)
+    df_s02_q.to_csv(out_dir / "s02_mqg_vs_experimental.csv", index=False)
     df_match.to_csv(out_dir / "excel_vs_s01_experimental.csv", index=False)
 
     df_smarts_excel = df_match[["name_s01", "inchikey", "logKow_smarts", "logKow_excel", "match_mode"]].copy()
@@ -380,6 +436,10 @@ def main() -> None:
     s01_m_kow_y = df_s01_m["logKow_smarts"].to_numpy(dtype=float)
     s02_m_koa_x = df_s02_m["logKoa_exp_s02"].to_numpy(dtype=float)
     s02_m_koa_y = df_s02_m["logKoa_smarts"].to_numpy(dtype=float)
+    s01_q_kow_x = df_s01_q["logKow_exp_s01"].to_numpy(dtype=float)
+    s01_q_kow_y = df_s01_q["logKow_mqg"].to_numpy(dtype=float)
+    s02_q_koa_x = df_s02_q["logKoa_exp_s02"].to_numpy(dtype=float)
+    s02_q_koa_y = df_s02_q["logKoa_mqg"].to_numpy(dtype=float)
     xls_kow_x = df_match["logKow_excel"].to_numpy(dtype=float)
     xls_kow_y = df_match["logKow_smarts"].to_numpy(dtype=float)
 
@@ -387,6 +447,8 @@ def main() -> None:
     s02_koa_metrics = _metrics(s02_koa_x, s02_koa_y)
     s01_m_kow_metrics = _metrics(s01_m_kow_x, s01_m_kow_y)
     s02_m_koa_metrics = _metrics(s02_m_koa_x, s02_m_koa_y)
+    s01_q_kow_metrics = _metrics(s01_q_kow_x, s01_q_kow_y)
+    s02_q_koa_metrics = _metrics(s02_q_koa_x, s02_q_koa_y)
     xls_kow_metrics = _metrics(xls_kow_x, xls_kow_y)
     xls_vs_s01_kow_metrics = _metrics(xls_kow_x, df_match["logKow_exp_s01"].to_numpy(dtype=float))
 
@@ -429,6 +491,27 @@ def main() -> None:
             title="SMARTS mixed logKoa vs S02",
             out_png=out_dir / "corr_smarts_mixed_koa_vs_s02.png",
         )
+
+    if _has_plot_data(s01_q_kow_x, s01_q_kow_y):
+        _plot_corr(
+            x=s01_q_kow_x,
+            y=s01_q_kow_y,
+            xlabel=f"S01 experimental {args.s01_kow_prop}",
+            ylabel="MQG-predicted logKow",
+            title="MQG logKow vs S01",
+            out_png=out_dir / "corr_mqg_kow_vs_s01.png",
+        )
+
+    if _has_plot_data(s02_q_koa_x, s02_q_koa_y):
+        _plot_corr(
+            x=s02_q_koa_x,
+            y=s02_q_koa_y,
+            xlabel=f"S02 experimental {args.s02_koa_prop}",
+            ylabel="MQG-predicted logKoa",
+            title="MQG logKoa vs S02",
+            out_png=out_dir / "corr_mqg_koa_vs_s02.png",
+        )
+
     if _has_plot_data(xls_kow_x, xls_kow_y):
         _plot_corr(
             x=xls_kow_x,
@@ -448,6 +531,14 @@ def main() -> None:
     print(s01_kow_metrics)
     print("\nS02 logKoa experimental vs SMARTS:")
     print(s02_koa_metrics)
+    print("\nS01 logKow experimental vs SMARTS mixed:")
+    print(s01_m_kow_metrics)
+    print("\nS02 logKoa experimental vs SMARTS mixed:")
+    print(s02_m_koa_metrics)
+    print("\nS01 logKow experimental vs MQG:")
+    print(s01_q_kow_metrics)
+    print("\nS02 logKoa experimental vs MQG:")
+    print(s02_q_koa_metrics)
     print("\nExcel logKow vs SMARTS:")
     print(xls_kow_metrics)
     print("\nExcel logKow vs S01 experimental:")
