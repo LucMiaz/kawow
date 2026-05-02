@@ -24,6 +24,7 @@ import json
 import pickle
 import warnings
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.linear_model import RidgeCV
@@ -65,6 +66,186 @@ _MODEL_FILES = {
 _MODEL_FILES_MQG = {
     "mqg": (_MODEL_MQG_LOGKOW, _MODEL_MQG_LOGKOA),
 }
+
+_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "mqg")
+
+
+def _classify_partition(
+    logkow: float,
+    logkoa: float,
+    b_threshold: float = 5.0,
+    m_threshold: float = 4.9,
+    p_proxy_koa_threshold: float = 6.0,
+) -> dict[str, Any]:
+    """Classify B/M plus a P-proxy flag from predicted partition coefficients.
+
+    Notes
+    -----
+    - ``is_B`` follows the threshold used in the Naef/pgap workflow.
+    - ``is_M`` uses the common cutoff derived from Koc = 0.41*Kow.
+    - ``is_P_proxy`` is a pragmatic screen based on ``logKoa < 6`` used in
+      the pgap visualisation context (not a full persistence assessment).
+    """
+    is_B = bool(logkow > b_threshold)
+    is_M = bool(logkow <= m_threshold)
+    is_P_proxy = bool(logkoa < p_proxy_koa_threshold)
+    is_P_gap = bool(is_B and is_P_proxy)
+
+    if is_B:
+        bm_class = "B"
+    elif is_M:
+        bm_class = "M"
+    else:
+        bm_class = "intermediate"
+
+    if is_P_gap:
+        pb_class = "P-gap"
+    elif is_B:
+        pb_class = "B"
+    elif is_P_proxy:
+        pb_class = "P-proxy"
+    else:
+        pb_class = "none"
+
+    return {
+        "is_B": is_B,
+        "is_M": is_M,
+        "is_P_proxy": is_P_proxy,
+        "is_P_gap": is_P_gap,
+        "bm_class": bm_class,
+        "pb_class": pb_class,
+        "thresholds": {
+            "B_logKow_gt": float(b_threshold),
+            "M_logKow_lte": float(m_threshold),
+            "P_proxy_logKoa_lt": float(p_proxy_koa_threshold),
+        },
+    }
+
+
+def _normalise_model_prediction(raw: dict[str, Any], model_name: str) -> dict[str, Any]:
+    """Normalize predictions from all calculator classes to one schema."""
+    if not isinstance(raw, dict):
+        return {
+            "model": model_name,
+            "status": "error",
+            "error": "invalid prediction payload",
+            "ok": False,
+        }
+
+    if "status" in raw:
+        if raw.get("status") != "ok":
+            return {
+                "model": model_name,
+                "status": "error",
+                "error": str(raw.get("error", "prediction failed")),
+                "ok": False,
+            }
+        out = {
+            "model": model_name,
+            "status": "ok",
+            "ok": True,
+            "logKow": float(raw.get("logKow")),
+            "logKoa": float(raw.get("logKoa")),
+            "logKaw": float(raw.get("logKaw")),
+        }
+    else:
+        # NaefAcree* calculators return bare contribution dicts.
+        out = {
+            "model": model_name,
+            "status": "ok",
+            "ok": True,
+            "logKow": float(raw.get("logKow")),
+            "logKoa": float(raw.get("logKoa")),
+            "logKaw": float(raw.get("logKaw")),
+        }
+        if "in_coverage" in raw:
+            out["in_coverage"] = bool(raw.get("in_coverage"))
+
+    out.update(_classify_partition(out["logKow"], out["logKoa"]))
+    return out
+
+
+def run_models(
+    inp,
+    models: list[str] | tuple[str, ...] | None = None,
+    fmt: str = "auto",
+) -> list[dict[str, Any]]:
+    """Run one or more kawow models and return aligned results per molecule.
+
+    Parameters
+    ----------
+    inp:
+        Any input accepted by :func:`kawow.io.parse_input`.
+    models:
+        Sequence of model identifiers. Supported values are:
+        ``kawow``, ``smarts``, ``smarts_mixed``, ``mqg``.
+        If omitted, all available models are used.
+    fmt:
+        Input format forwarded to :func:`kawow.io.parse_input`.
+    """
+    from .io import parse_input
+    from .smarts_model import (
+        NaefAcreePartitionCalculator,
+        NaefAcreeCrippenMixedPartitionCalculator,
+    )
+
+    selected = [m.lower() for m in (models or list(_AVAILABLE_MODEL_NAMES))]
+    selected = [m for m in selected if m in _AVAILABLE_MODEL_NAMES]
+    if not selected:
+        raise ValueError(
+            "No valid model selected. Supported models: "
+            f"{list(_AVAILABLE_MODEL_NAMES)}"
+        )
+
+    calculators: dict[str, Any] = {}
+    for model_name in selected:
+        if model_name == "kawow":
+            calculators[model_name] = PartitionCalculator()
+        elif model_name == "smarts":
+            calculators[model_name] = NaefAcreePartitionCalculator()
+        elif model_name == "smarts_mixed":
+            calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
+        elif model_name == "mqg":
+            calculators[model_name] = MQGPartitionCalculator()
+
+    pairs = parse_input(inp, fmt=fmt)
+    out_rows: list[dict[str, Any]] = []
+
+    for mol, name in pairs:
+        smiles = ""
+        if Chem is not None and mol is not None:
+            try:
+                smiles = Chem.MolToSmiles(mol)
+            except Exception:
+                smiles = ""
+
+        row = {
+            "name": name,
+            "smiles": smiles,
+            "models": {},
+            "ok": False,
+        }
+
+        for model_name, calculator in calculators.items():
+            try:
+                try:
+                    pred = calculator.predict(mol, fmt="mol")
+                except TypeError:
+                    pred = calculator.predict(mol)
+                norm = _normalise_model_prediction(pred, model_name=model_name)
+            except Exception as exc:
+                norm = {
+                    "model": model_name,
+                    "status": "error",
+                    "error": str(exc),
+                    "ok": False,
+                }
+            row["models"][model_name] = norm
+
+        row["ok"] = any(v.get("ok") for v in row["models"].values())
+        out_rows.append(row)
+
+    return out_rows
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
