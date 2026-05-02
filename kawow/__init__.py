@@ -21,7 +21,8 @@ R. Naef, W.E. Acree Jr., Liquids 4(1):231-260, 2024.
 DOI: 10.3390/liquids4010011
 """
 
-from .model import PartitionCalculator, fit
+from .model import PartitionCalculator, MQGPartitionCalculator, fit, fit_mqg
+from .smarts_model import NaefAcreePartitionCalculator, NaefAcreeCrippenMixedPartitionCalculator
 from .io import parse_input
 from .features import compute_features
 from .atom_types import FEATURE_LABELS, N_FEATURES
@@ -29,7 +30,11 @@ from .atom_types import FEATURE_LABELS, N_FEATURES
 __version__ = "0.1.0"
 __all__ = [
     "PartitionCalculator",
+    "MQGPartitionCalculator",
+    "NaefAcreePartitionCalculator",
+    "NaefAcreeCrippenMixedPartitionCalculator",
     "fit",
+    "fit_mqg",
     "parse_input",
     "compute_features",
     "FEATURE_LABELS",

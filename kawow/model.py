@@ -3,17 +3,11 @@ model.py
 ========
 Group-additivity models for prediction of logKow and logKoa.
 
-Two model variants are available:
+The supported model variant is:
 
 ``"kawow"`` (default)
     Ridge regression (L2 regularisation) re-fitted on the Naef & Acree (2024)
-    SDF training data.  Stored in ``kawow/data/logk*_model.json``.
-
-``"naef_ols"`` (alias ``"naef"``)
-    Ordinary least-squares fit (no regularisation) on the same training data,
-    matching Naef's Gauss-Seidel method.  Produces statistics close to those
-    reported in the paper (R² ≈ 0.96 / 0.97).
-    Stored in ``kawow/data/logk*_ols_model.json``.
+    SDF training data. Stored in ``kawow/data/logk*_model.json``.
 
 Training data
 -------------
@@ -27,13 +21,16 @@ be imported and used without re-fitting.
 
 from __future__ import annotations
 import json
+import pickle
 import warnings
 from pathlib import Path
 
 import numpy as np
 from sklearn.linear_model import RidgeCV
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_squared_error
-from sklearn.model_selection import KFold, cross_val_predict
+from sklearn.model_selection import KFold, cross_val_predict, cross_val_score, train_test_split
+from scipy.stats import spearmanr
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -41,18 +38,32 @@ from .features import compute_features
 from .atom_types import FEATURE_LABELS
 from .io import _read_sdf
 
+try:
+    from rdkit import Chem
+except Exception:  # pragma: no cover
+    Chem = None
+
+try:
+    from mqg.core import MolecularQuantumGraph
+    _MQG_AVAILABLE = True
+except Exception:  # pragma: no cover
+    MolecularQuantumGraph = None
+    _MQG_AVAILABLE = False
+
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 _MODEL_LOGKOW     = DATA_DIR / "logkow_model.json"
 _MODEL_LOGKOA     = DATA_DIR / "logkoa_model.json"
-_MODEL_LOGKOW_OLS = DATA_DIR / "logkow_ols_model.json"
-_MODEL_LOGKOA_OLS = DATA_DIR / "logkoa_ols_model.json"
+_MODEL_MQG_LOGKOW = DATA_DIR / "logkow_mqg_model.pkl"
+_MODEL_MQG_LOGKOA = DATA_DIR / "logkoa_mqg_model.pkl"
 
 _MODEL_FILES = {
-    "kawow":    (_MODEL_LOGKOW,     _MODEL_LOGKOA),
-    "naef_ols": (_MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS),
-    "naef":     (_MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS),
+    "kawow": (_MODEL_LOGKOW, _MODEL_LOGKOA),
+}
+
+_MODEL_FILES_MQG = {
+    "mqg": (_MODEL_MQG_LOGKOW, _MODEL_MQG_LOGKOA),
 }
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -132,54 +143,6 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
     return result
 
 
-def _fit_and_save_ols(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> dict:
-    """Fit OLS (unregularized) with 3\u03c3 outlier removal, matching Naef's Gauss-Seidel method."""
-
-    def _fit_ols(X_: np.ndarray, y_: np.ndarray):
-        """Return (coefs, intercept) via lstsq on augmented matrix."""
-        # Augment X with a bias column for intercept
-        X_aug = np.hstack([X_.astype(np.float64), np.ones((len(X_), 1))])
-        result, _, _, _ = np.linalg.lstsq(X_aug, y_.astype(np.float64), rcond=None)
-        return result[:-1], float(result[-1])  # coefs, intercept
-
-    # Initial fit
-    coefs, intercept = _fit_ols(X, y)
-    residuals = y.astype(np.float64) - (X.astype(np.float64) @ coefs + intercept)
-    sigma = residuals.std()
-    mask = np.abs(residuals) <= 3 * sigma
-    n_removed = int((~mask).sum())
-    if n_removed > 0:
-        print(f"  [{target}] OLS: removing {n_removed} outliers (>3*sigma={sigma:.3f})")
-        X, y = X[mask], y[mask]
-        coefs, intercept = _fit_ols(X, y)
-
-    # Cross-validated performance (leave-every-5th-out, matching Naef's 10-fold cv)
-    from sklearn.model_selection import KFold
-    from sklearn.metrics import r2_score, mean_squared_error
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    y_cv = np.empty(len(y))
-    for train_idx, test_idx in kf.split(X):
-        c, b = _fit_ols(X[train_idx], y[train_idx])
-        y_cv[test_idx] = X[test_idx].astype(np.float64) @ c + b
-    r2   = r2_score(y, y_cv)
-    rmse = float(mean_squared_error(y, y_cv) ** 0.5)
-
-    result = {
-        "target": target,
-        "method": "ols",
-        "n_train": len(y),
-        "alpha": 0.0,
-        "r2_cv": round(r2, 4),
-        "rmse_cv": round(rmse, 4),
-        "intercept": intercept,
-        "weights": {label: float(coefs[i]) for i, label in enumerate(FEATURE_LABELS)},
-    }
-    with open(out_path, "w") as f:
-        json.dump(result, f, indent=2)
-    print(f"  [{target}] OLS  n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  \u2192 {out_path.name}")
-    return result
-
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def fit(
@@ -187,7 +150,6 @@ def fit(
     sdf_logkoa: str | Path,
     logkow_prop: str = "logP",
     logkoa_prop: str = "logKoa",
-    method: str = "ridge",
 ) -> None:
     """
     Fit models on S01 (logKow) and S02 (logKoa) SDF files and save
@@ -197,24 +159,15 @@ def fit(
     ----------
     sdf_logkow : path to SDF file with logKow data (tag name in logkow_prop)
     sdf_logkoa : path to SDF file with logKoa data (tag name in logkoa_prop)
-    method     : ``'ridge'`` (default) for L2-regularised Ridge regression, or
-                 ``'ols'`` for unregularised OLS matching Naef's Gauss-Seidel method.
     """
-    if method not in ("ridge", "ols"):
-        raise ValueError(f"method must be 'ridge' or 'ols', got {method!r}")
+    _saver = _fit_and_save
+    kow_path, koa_path = _MODEL_LOGKOW, _MODEL_LOGKOA
 
-    if method == "ridge":
-        _saver = _fit_and_save
-        kow_path, koa_path = _MODEL_LOGKOW, _MODEL_LOGKOA
-    else:
-        _saver = _fit_and_save_ols
-        kow_path, koa_path = _MODEL_LOGKOW_OLS, _MODEL_LOGKOA_OLS
-
-    print(f"Fitting logKow model ({method}) …")
+    print("Fitting logKow model (ridge) …")
     X_kow, y_kow, _ = _build_Xy(sdf_logkow, logkow_prop)
     _saver(X_kow, y_kow, kow_path, "logKow")
 
-    print(f"Fitting logKoa model ({method}) …")
+    print("Fitting logKoa model (ridge) …")
     X_koa, y_koa, _ = _build_Xy(sdf_logkoa, logkoa_prop)
     _saver(X_koa, y_koa, koa_path, "logKoa")
     print("Done.")
@@ -237,6 +190,201 @@ def _predict_from_json(feat: np.ndarray, model_dict: dict) -> float:
     return float(np.dot(feat.astype(np.float64), weights) + model_dict["intercept"])
 
 
+def _compute_mqg_features(mol, fp_size: int = 64) -> np.ndarray | None:
+    """Compute zero-padded MQG eigenvalue fingerprint for one molecule."""
+    if not _MQG_AVAILABLE or Chem is None:
+        raise ImportError(
+            "MQG model requires the molecular_quantum_graph package (import name: mqg)."
+        )
+
+    if mol is None or mol.GetNumBonds() == 0:
+        return None
+
+    try:
+        ev = MolecularQuantumGraph(
+            mol,
+            weighting_scheme="bde",
+            normalize_length=True,
+        ).compute_spectrum(maxroots=fp_size)
+    except Exception as exc:
+        warnings.warn(f"MQG spectrum computation failed: {exc}")
+        return None
+
+    x = np.zeros(fp_size, dtype=np.float32)
+    if ev is None:
+        return x
+    k = min(len(ev), fp_size)
+    if k > 0:
+        x[:k] = np.asarray(ev[:k], dtype=np.float32)
+    return x
+
+
+def _compute_mqg_features_with_ratios(mol, fp_size: int = 64) -> np.ndarray | None:
+    """MQG eigenvalue vector + consecutive ratios ev[i+1]/ev[i].
+
+    Returns shape ``(2*fp_size - 1,)``:
+    - First ``fp_size`` values: zero-padded eigenvalues.
+    - Next ``fp_size - 1`` values: consecutive ratios ev[i+1]/ev[i]
+      (0 where denominator is ~0).
+    """
+    ev = _compute_mqg_features(mol, fp_size=fp_size)
+    if ev is None:
+        return None
+    denom = ev[:-1]
+    numer = ev[1:]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratios = np.where(np.abs(denom) > 1e-9, numer / denom, 0.0).astype(np.float32)
+    return np.concatenate([ev, ratios])
+
+
+def _build_Xy_mqg(sdf_path: str | Path, value_prop: str, fp_size: int = 64) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Load SDF, compute MQG eigenvalue + ratio features, return (X, y, names)."""
+    rows = _read_sdf(sdf_path, target_prop=value_prop)
+    X, y, names = [], [], []
+    for mol, name, val in rows:
+        if val is None:
+            continue
+        feat = _compute_mqg_features_with_ratios(mol, fp_size=fp_size)
+        if feat is None:
+            continue
+        X.append(feat)
+        y.append(val)
+        names.append(name)
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float64), names
+
+
+def _fit_mqg_and_save(
+    X: np.ndarray,
+    y: np.ndarray,
+    out_path: Path,
+    target: str,
+    fp_size: int = 64,
+    tuning_frac: float = 0.2,
+) -> dict:
+    """Fit MQG RandomForest with tuning-fold ratio feature selection.
+
+    Pipeline
+    --------
+    1. Hold out ``tuning_frac`` of the data as the *tuning fold*.
+    2. On the tuning fold, rank the ``fp_size - 1`` consecutive ratio features
+       by |Spearman correlation| with ``y``.
+    3. Grid-search k ∈ {0, 5, 10, 15, 20, 30, 40, 50, fp_size-1}: use 3-fold
+       CV on the remaining training set to pick the k that maximises R².
+    4. Evaluate the final model (raw eigenvalues + selected k ratio features)
+       with 5-fold CV on the *full* dataset, then fit on all data.
+    """
+    n_raw    = fp_size           # eigenvalue columns (indices 0..n_raw-1)
+    n_ratios = fp_size - 1       # consecutive ratio columns
+
+    # ── Tuning fold ───────────────────────────────────────────────────────────
+    idx_fit, idx_tune = train_test_split(
+        np.arange(len(y)), test_size=tuning_frac, random_state=42, shuffle=True
+    )
+    X_tune, y_tune = X[idx_tune], y[idx_tune]
+    X_fit,  y_fit  = X[idx_fit],  y[idx_fit]
+
+    # Rank ratio features by |Spearman r| on tuning set
+    ratio_block = X_tune[:, n_raw:]
+    corrs = np.array(
+        [abs(spearmanr(ratio_block[:, i], y_tune).statistic) for i in range(n_ratios)],
+        dtype=np.float64,
+    )
+    sorted_by_corr = np.argsort(corrs)[::-1]   # best first
+
+    # Grid-search k using 3-fold CV on training set
+    k_candidates = [0, 5, 10, 15, 20, 30, 40, 50, n_ratios]
+    best_k, best_cv_r2 = 0, -np.inf
+    for k in k_candidates:
+        cols = list(range(n_raw))
+        if k > 0:
+            cols += [int(n_raw + j) for j in sorted_by_corr[:k]]
+        tmp_model = make_pipeline(
+            StandardScaler(),
+            RandomForestRegressor(n_estimators=50, random_state=42, n_jobs=-1),
+        )
+        scores = cross_val_score(tmp_model, X_fit[:, cols], y_fit, cv=3, scoring="r2")
+        mean_r2 = float(scores.mean())
+        if mean_r2 > best_cv_r2:
+            best_cv_r2 = mean_r2
+            best_k = k
+
+    selected_ratio_idx = [int(j) for j in sorted_by_corr[:best_k]] if best_k > 0 else []
+    feature_cols = list(range(n_raw)) + [n_raw + j for j in selected_ratio_idx]
+
+    print(
+        f"  [{target} MQG] tuning fold selected {best_k}/{n_ratios} ratio features "
+        f"(3-fold CV R²={best_cv_r2:.3f})"
+    )
+
+    # ── Final 5-fold CV + full fit ────────────────────────────────────────────
+    X_sel = X[:, feature_cols]
+    model = make_pipeline(
+        StandardScaler(),
+        RandomForestRegressor(n_estimators=300, random_state=42, n_jobs=-1),
+    )
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    y_cv = cross_val_predict(model, X_sel, y, cv=kf)
+    r2   = float(r2_score(y, y_cv))
+    rmse = float(mean_squared_error(y, y_cv) ** 0.5)
+    model.fit(X_sel, y)
+
+    payload = {
+        "target": target,
+        "method": "mqg_random_forest",
+        "n_train": int(len(y)),
+        "fp_size": int(fp_size),
+        "weighting_scheme": "bde",
+        "normalize_length": True,
+        "n_ratio_features": int(best_k),
+        "selected_ratio_indices": selected_ratio_idx,
+        "feature_cols": feature_cols,
+        "r2_cv": round(r2, 4),
+        "rmse_cv": round(rmse, 4),
+        "model": model,
+    }
+    with open(out_path, "wb") as f:
+        pickle.dump(payload, f)
+
+    print(
+        f"  [{target} MQG] n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  "
+        f"({len(feature_cols)} features total)  -> {out_path.name}"
+    )
+    return payload
+
+
+def fit_mqg(
+    sdf_logkow: str | Path,
+    sdf_logkoa: str | Path,
+    logkow_prop: str = "logP",
+    logkoa_prop: str = "logKoa",
+    fp_size: int = 64,
+) -> None:
+    """Fit MQG-based models on S01/S02 and save to kawow/data/*.pkl."""
+    if not _MQG_AVAILABLE:
+        raise ImportError(
+            "MQG model requires the molecular_quantum_graph package (import name: mqg)."
+        )
+
+    print("Fitting MQG logKow model (RandomForest) ...")
+    X_kow, y_kow, _ = _build_Xy_mqg(sdf_logkow, logkow_prop, fp_size=fp_size)
+    _fit_mqg_and_save(X_kow, y_kow, _MODEL_MQG_LOGKOW, "logKow", fp_size=fp_size)
+
+    print("Fitting MQG logKoa model (RandomForest) ...")
+    X_koa, y_koa, _ = _build_Xy_mqg(sdf_logkoa, logkoa_prop, fp_size=fp_size)
+    _fit_mqg_and_save(X_koa, y_koa, _MODEL_MQG_LOGKOA, "logKoa", fp_size=fp_size)
+    print("Done.")
+
+
+def _load_pickle(path: Path) -> dict:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Model file not found: {path}\n"
+            "Run kawow.fit_mqg(sdf_logkow, sdf_logkoa) first."
+        )
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
 class PartitionCalculator:
     """
     Predict logKow, logKoa, logKaw from molecular structure using the
@@ -245,18 +393,12 @@ class PartitionCalculator:
     Parameters
     ----------
     model : str, optional
-        Which fitted model to use for predictions:
-
-        * ``'kawow'`` (default) — Ridge regression (L2-regularised).
-        * ``'naef_ols'`` or ``'naef'`` — OLS re-fit matching Naef's
-          Gauss-Seidel method. Run ``kawow.fit(..., method='ols')`` first to
-          generate the required JSON files.
+        Must be ``'kawow'`` (default). Retained for backwards compatibility.
 
     Usage
     -----
     >>> from kawow import PartitionCalculator
     >>> calc = PartitionCalculator()                    # Ridge (default)
-    >>> calc_naef = PartitionCalculator(model='naef_ols')  # OLS
     >>> calc.predict("CCCCO")            # 1-butanol
     {'logKow': 0.88, 'logKoa': 4.12, 'logKaw': -3.24, 'status': 'ok'}
     >>> calc.predict_batch(["CCCCO", "c1ccccc1"])
@@ -264,13 +406,12 @@ class PartitionCalculator:
     """
 
     def __init__(self, model: str = "kawow") -> None:
-        if model not in _MODEL_FILES:
+        if model != "kawow":
             raise ValueError(
-                f"Unknown model {model!r}. "
-                f"Valid options: {list(_MODEL_FILES)}"
+                f"Unknown model {model!r}. Valid option: ['kawow']"
             )
-        self._model_name = model
-        kow_path, koa_path = _MODEL_FILES[model]
+        self._model_name = "kawow"
+        kow_path, koa_path = _MODEL_FILES["kawow"]
         self._kow = _load_json(kow_path)
         self._koa = _load_json(koa_path)
 
@@ -348,7 +489,90 @@ class PartitionCalculator:
         sdf_logkoa: str | Path,
         logkow_prop: str = "logP",
         logkoa_prop: str = "logKoa",
-        method: str = "ridge",
     ) -> None:
         """Fit and save models (calls module-level :func:`fit`)."""
-        fit(sdf_logkow, sdf_logkoa, logkow_prop, logkoa_prop, method=method)
+        fit(sdf_logkow, sdf_logkoa, logkow_prop, logkoa_prop)
+
+
+class MQGPartitionCalculator:
+    """Predict logKow/logKoa/logKaw from MQG eigenvalue fingerprints."""
+
+    def __init__(self) -> None:
+        if not _MQG_AVAILABLE:
+            raise ImportError(
+                "MQGPartitionCalculator requires the molecular_quantum_graph package (import name: mqg)."
+            )
+        kow_path, koa_path = _MODEL_FILES_MQG["mqg"]
+        self._kow = _load_pickle(kow_path)
+        self._koa = _load_pickle(koa_path)
+
+    def _predict_mol(self, mol) -> dict:
+        fp_size = int(self._kow.get("fp_size", 64))
+        feat = _compute_mqg_features_with_ratios(mol, fp_size=fp_size)
+        if feat is None:
+            return {"status": "error", "error": "molecule has no valid MQG spectrum"}
+
+        feature_cols_kow = self._kow.get("feature_cols")
+        feature_cols_koa = self._koa.get("feature_cols")
+        x_kow = feat[feature_cols_kow].reshape(1, -1) if feature_cols_kow is not None else feat.reshape(1, -1)
+        x_koa = feat[feature_cols_koa].reshape(1, -1) if feature_cols_koa is not None else feat.reshape(1, -1)
+
+        logKow = float(self._kow["model"].predict(x_kow)[0])
+        logKoa = float(self._koa["model"].predict(x_koa)[0])
+        logKaw = logKow - logKoa
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKaw, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        if len(results) == 1:
+            return results[0]
+        return results
+
+    def predict_batch(self, smiles_list: list[str]) -> list[dict]:
+        if Chem is None:
+            raise ImportError("RDKit is required for MQGPartitionCalculator.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": "mqg",
+            "logKow": {k: v for k, v in self._kow.items() if k != "model"},
+            "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }
+
+    @staticmethod
+    def fit(
+        sdf_logkow: str | Path,
+        sdf_logkoa: str | Path,
+        logkow_prop: str = "logP",
+        logkoa_prop: str = "logKoa",
+        fp_size: int = 64,
+    ) -> None:
+        fit_mqg(
+            sdf_logkow=sdf_logkow,
+            sdf_logkoa=sdf_logkoa,
+            logkow_prop=logkow_prop,
+            logkoa_prop=logkoa_prop,
+            fp_size=fp_size,
+        )

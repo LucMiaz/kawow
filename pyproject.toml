@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kawow"
-version = "0.1.0"
+version = "0.1.1"
 description = "Group-additivity prediction of logKow, logKoa and logKaw from molecular structure based on [Naef & Acree 2024](https://doi.org/10.3390/liquids4010011)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -55,4 +55,4 @@ where = ["."]
 include = ["kawow*"]
 
 [tool.setuptools.package-data]
-kawow = ["data/*.json"]
+kawow = ["data/*.json", "data/*.pkl"]

@@ -119,6 +119,50 @@ class TestComputeFeatures:
         assert vec[idx] == pytest.approx(2.0), "Glycerol: 2 extra OH (3 total - 1)"
 
 
+class TestSmartsSpecialGroups:
+    def test_halide_is_sparse_compound_correction(self):
+        from kawow.smarts_model import _count_halide
+        assert _count_halide(Chem.MolFromSmiles("CCl")) == pytest.approx(1.0)
+        assert _count_halide(Chem.MolFromSmiles("Clc1ccccc1")) == pytest.approx(0.0)
+
+    def test_alkane_requires_pure_acyclic_hydrocarbon(self):
+        from kawow.smarts_model import _count_alkane_carbons
+        assert _count_alkane_carbons(Chem.MolFromSmiles("CCCCCC")) == pytest.approx(6.0)
+        assert _count_alkane_carbons(Chem.MolFromSmiles("CCCCO")) == pytest.approx(0.0)
+        assert _count_alkane_carbons(Chem.MolFromSmiles("C1CCCCC1")) == pytest.approx(0.0)
+
+    def test_cooh_and_coh_do_not_double_count_carboxylic_acids(self):
+        from kawow.smarts_model import _count_coh, _count_cooh
+        malonic = Chem.MolFromSmiles("OC(=O)CC(=O)O")
+        glycerol = Chem.MolFromSmiles("OCC(O)CO")
+        assert _count_cooh(malonic) == pytest.approx(1.0)
+        assert _count_coh(malonic) == pytest.approx(0.0)
+        assert _count_coh(glycerol) == pytest.approx(2.0)
+
+    def test_h_acceptor_counts_intramolecular_pair_not_raw_acceptors(self):
+        from kawow.smarts_model import _count_h_acceptor
+        salicylaldehyde = Chem.MolFromSmiles("O=Cc1ccccc1O")
+        acetone = Chem.MolFromSmiles("CC(=O)C")
+        assert _count_h_acceptor(salicylaldehyde) == pytest.approx(1.0)
+        assert _count_h_acceptor(acetone) == pytest.approx(0.0)
+
+    def test_conjugated_neighbor_moieties_counts_sulfur_aromatic_neighbor(self):
+        from kawow.smarts_model import count_conjugated_neighbor_moieties
+        mol = Chem.MolFromSmiles("CSc1ccccc1")  # thioanisole
+        sulfur_idx = next(atom.GetIdx() for atom in mol.GetAtoms() if atom.GetAtomicNum() == 16)
+        n_moieties, sizes = count_conjugated_neighbor_moieties(mol, sulfur_idx)
+        assert n_moieties == 1
+        assert sizes == [6]
+
+    def test_conjugated_neighbor_moieties_excludes_nonpi_sulfur_neighbors(self):
+        from kawow.smarts_model import count_conjugated_neighbor_moieties
+        mol = Chem.MolFromSmiles("CSC")  # dimethyl sulfide
+        sulfur_idx = next(atom.GetIdx() for atom in mol.GetAtoms() if atom.GetAtomicNum() == 16)
+        n_moieties, sizes = count_conjugated_neighbor_moieties(mol, sulfur_idx)
+        assert n_moieties == 0
+        assert sizes == []
+
+
 # ── io ────────────────────────────────────────────────────────────────────────
 
 class TestParseInput:

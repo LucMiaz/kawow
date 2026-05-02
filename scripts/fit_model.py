@@ -10,9 +10,6 @@ Usage
     # Fit the default Ridge model (overwrites logkow_model.json / logkoa_model.json)
     python scripts/fit_model.py
 
-    # Fit the OLS model (writes logkow_ols_model.json / logkoa_ols_model.json)
-    python scripts/fit_model.py --method ols
-
 Reads:
     S01. Compounds List for logPow-Parameters Calculations.sdf  → logKow
     S02. Compounds List for logKoa-Parameters Calculations.sdf  → logKoa
@@ -20,10 +17,6 @@ Reads:
 Writes (ridge):
     kawow/data/logkow_model.json
     kawow/data/logkoa_model.json
-
-Writes (ols):
-    kawow/data/logkow_ols_model.json
-    kawow/data/logkoa_ols_model.json
 """
 
 import argparse
@@ -44,12 +37,6 @@ S02 = os.path.join(SDF_DIR, "S02. Compounds List for logKoa-Parameters Calculati
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fit kawow partition models.")
-    parser.add_argument(
-        "--method",
-        choices=["ridge", "ols"],
-        default="ridge",
-        help="Fitting method: 'ridge' (default, L2-regularised) or 'ols' (Naef Gauss-Seidel).",
-    )
     parser.add_argument(
         "--sdf_kow",
         default=str(S01),
@@ -77,5 +64,4 @@ if __name__ == "__main__":
         sdf_logkoa=s02,
         logkow_prop="logP",
         logkoa_prop="logKoa",
-        method=args.method,
     )

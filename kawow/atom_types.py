@@ -32,7 +32,7 @@ from rdkit import Chem, RDConfig
 # Try installed RDDataDir first, fall back to rdkit-src in workspace
 _CRIPPEN_TXT_CANDIDATES = [
     os.path.join(RDConfig.RDDataDir, "Crippen.txt"),
-    r"c:\Users\luc\git\rdkit-src\Data\Crippen.txt",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "Crippen.txt"),
 ]
 
 def _parse_crippen_txt() -> tuple[list[str], dict[str, list]]:
