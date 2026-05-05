@@ -36,7 +36,4 @@ jobs:
       - name: Run pylint
         run: |
           pylint kawow/ \
-            --disable=C0114,C0115,C0116 \
-            --disable=R0903,R0913,R0914 \
-            --disable=W0212 \
             --fail-under=8.0

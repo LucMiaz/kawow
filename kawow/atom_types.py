@@ -25,7 +25,6 @@ priority (matching RDKit's _pyGetAtomContribs logic).
 """
 
 import os
-from pathlib import Path
 from rdkit import Chem, RDConfig
 
 # ── Parse Crippen.txt ─────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ def _parse_crippen_txt() -> tuple[list[str], dict[str, list]]:
 
     order: list[str] = []
     patts: dict[str, list] = {}
-    with open(txt_path, "r") as f:
+    with open(txt_path, "r", encoding="utf-8") as f:
         for line in f:
             if line.startswith("#"):
                 continue

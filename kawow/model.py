@@ -315,7 +315,7 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
         "intercept": intercept,
         "weights": {label: float(coefs[i]) for i, label in enumerate(FEATURE_LABELS)},
     }
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
     print(f"  [{target}] n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  "
           f"alpha={ridge.alpha_:.4g}  \u2192 {out_path.name}")
@@ -358,7 +358,7 @@ def _load_json(path: Path) -> dict:
             f"Model file not found: {path}\n"
             "Run kawow.fit(sdf_logkow, sdf_logkoa) first."
         )
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -629,7 +629,6 @@ class PartitionCalculator:
             r = self._predict_mol(mol)
             r["name"] = name
             try:
-                from rdkit.Chem import Descriptors
                 r["smiles"] = mol.GetProp("_SMILES") if mol.HasProp("_SMILES") else ""
             except Exception:
                 pass

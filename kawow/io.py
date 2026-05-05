@@ -106,7 +106,7 @@ def parse_input(inp, fmt: str = "auto") -> list[tuple]:
             return [(mol, name) for mol, name, _ in rows]
         if ext in (".smi", ".smiles", ".txt") or fmt == "smiles":
             out = []
-            with open(inp, "r") as f:
+            with open(inp, "r", encoding="utf-8") as f:
                 for line in f:
                     r = _from_smiles(line.strip())
                     if r:

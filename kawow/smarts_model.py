@@ -10,12 +10,12 @@ callable functions and initialized with practical RDKit-based templates.
 
 from __future__ import annotations
 
-import pandas as pd
-import functools
-import warnings
-from pathlib import Path
-from typing import Callable, Union
+from collections import deque
 import re
+from pathlib import Path
+from typing import Union
+
+import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdchem
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
@@ -23,14 +23,9 @@ from rdkit import RDLogger
 
 RDLogger.DisableLog("rdApp.*")  
 
-from .io import parse_input
-
 DATA_DIR = Path(__file__).parent / "data"
 
 _COOH_SMARTS = Chem.MolFromSmarts("C(=O)[OH]")
-
-
-from collections import deque
 
 
 def conjugated_moiety_size(mol: Chem.Mol, start_idx: int, forbidden_idx: int) -> int:
@@ -305,7 +300,7 @@ class NaefAcreePartitionCalculator:
                 try:
                     smarts = Chem.MolFromSmarts(_smarts)
                 except Exception as e:
-                    raise Exception(f"Invalid SMARTS for ID {row['Entry']} in logKow parameters: {_smarts}. Error: {e}")
+                    raise Exception(f"Invalid SMARTS for ID {row['Entry']} in logKow parameters: {_smarts}. Error: {e}") from e
                 else:
                     if smarts is None:
                         raise Exception(f"Invalid SMARTS for ID {row['Entry']} in {param} parameters: {_smarts}. Error: smarts is None after parsing")
