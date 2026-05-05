@@ -8,7 +8,7 @@
 
 Group-additivity prediction of **log*K*ow**, **log*K*oa**, and **log*K*aw** from molecular structure.
 
-*Kawow* implements the Naef & Acree (2024) group-additivity scheme using RDKit SMARTS pattern matching. Two model families are available depending on how much transparency or accuracy is required.
+*Kawow* implements some models to predict partitioning coefficients (`logKoa`, `logKow` and `logKaw`), in particular the Naef & Acree (2024) group-additivity scheme using RDKit SMARTS pattern matching. Two model families are available depending on how much transparency or accuracy is required.
 
 ### Flagging criteria used in outputs
 
