@@ -11,8 +11,6 @@ requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Luc Miaz" }]
 
-[project.urls]
-Repository = "https://github.com/LucMiaz/kawow"
 keywords = ["cheminformatics", "logKow", "logKoa", "logKaw", "partition coefficient", "QSPR"]
 dependencies = [
     "numpy>=1.24",
@@ -59,3 +57,6 @@ include = ["kawow*"]
 
 [tool.setuptools.package-data]
 kawow = ["data/*.json", "data/*.pkl"]
+
+[project.urls]
+Repository = "https://github.com/LucMiaz/kawow"

@@ -1,6 +1,34 @@
 # Quick start
 
-## Basic prediction
+## Running multiple models at once
+
+The easiest entry point is `run_models()`, which runs any combination of the
+four available models and returns aligned per-molecule results with B/vB and
+M/vM flags already computed:
+
+```python
+import kawow
+
+results = kawow.run_models(
+    ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
+    models=["kawow", "smarts_mixed"],   # omit to run all four
+)
+
+for row in results:
+    kow = row["models"]["kawow"]
+    mix = row["models"]["smarts_mixed"]
+    print(
+        f"{row['smiles']:35s}  "
+        f"kawow logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
+        f"  |  mixed logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
+    )
+```
+
+Available model keys: `"kawow"`, `"smarts"`, `"smarts_mixed"`, `"mqg"`.
+
+---
+
+## Basic prediction with a single model
 
 ```python
 from kawow import PartitionCalculator

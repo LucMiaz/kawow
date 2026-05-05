@@ -14,10 +14,38 @@ PartitionCalculator
    :undoc-members:
    :show-inheritance:
 
+MQGPartitionCalculator
+----------------------
+
+.. autoclass:: kawow.MQGPartitionCalculator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+NaefAcreePartitionCalculator
+----------------------------
+
+.. autoclass:: kawow.NaefAcreePartitionCalculator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+NaefAcreeCrippenMixedPartitionCalculator
+----------------------------------------
+
+.. autoclass:: kawow.NaefAcreeCrippenMixedPartitionCalculator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module-level functions
 ----------------------
 
+.. autofunction:: kawow.run_models
+
 .. autofunction:: kawow.fit
+
+.. autofunction:: kawow.fit_mqg
 
 .. autofunction:: kawow.compute_features
 

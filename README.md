@@ -1,4 +1,4 @@
-# Kawow
+# Kawow (under development)
 
 [![CI](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml/badge.svg)](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -49,10 +49,35 @@ pip install -e ".[dev]"
 
 ## Models at a glance
 
-| Class | Where | Approach | log*K*ow R² | log*K*oa R² |
-|-------|-------|----------|-------------|-------------|
-| `PartitionCalculator` | `kawow` | Ridge regression on Crippen features | 0.922 (cv) | 0.946 (cv) |
-| `NaefAcreePartitionCalculator` | `kawow.smarts_model` | Pure Naef & Acree 2024 additivity (no refitting) | 0.855 (S01) | 0.630 (S02) |
+| Model key | Class | Approach | log*K*ow R² | log*K*oa R² |
+|-----------|-------|----------|-------------|-------------|
+| `kawow` | `PartitionCalculator` | Ridge regression on Crippen + Naef special-group features | 0.922 (cv) | 0.946 (cv) |
+| `smarts` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no refitting) | 0.857 (S01) | 0.785 (S02) |
+| `smarts_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | Naef & Acree additivity + Crippen Ridge hybrid | 0.962 (cv) | 0.968 (cv) |
+| `mqg` | `MQGPartitionCalculator` | Random forest on Molecular Quantum Graph fingerprints | 0.881 (cv) | 0.945 (cv) |
+
+Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
+
+```python
+import kawow
+
+results = kawow.run_models(
+    ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
+    models=["kawow", "smarts_mixed"],
+)
+for row in results:
+    print(row["smiles"], row["models"]["kawow"]["logKow"],
+          row["models"]["kawow"]["b_class"])
+```
+
+Each element of the returned list is a `dict` with:
+
+| Key | Description |
+|-----|-------------|
+| `smiles` | canonical SMILES |
+| `name` | molecule name from input |
+| `models` | `dict` keyed by model name; each value contains `logKow`, `logKoa`, `logKaw`, `b_class`, `m_class`, `ok` |
+| `ok` | `True` if at least one model succeeded |
 
 ---
 
@@ -108,9 +133,11 @@ calc = kawow.PartitionCalculator()   # reload after fitting
 ### Performance (5-fold cross-validation on Naef & Acree training sets)
 
 | Model | Property | n | R² (cv) | RMSE (cv) |
-|-------|----------|---|---------|-----------|
-| Ridge | log*K*ow | 3 234 | **0.922** | 0.578 |
-| Ridge | log*K*oa | 1 886 | **0.946** | 0.660 |
+|-------|----------|---|---------|----------|
+| `kawow` (Ridge) | log*K*ow | 3 234 | **0.922** | 0.578 |
+| `kawow` (Ridge) | log*K*oa | 1 886 | **0.946** | 0.660 |
+| `smarts_mixed` (hybrid) | log*K*ow | 3 234 | **0.962** | 0.403 |
+| `smarts_mixed` (hybrid) | log*K*oa | 1 886 | **0.968** | 0.532 |
 
 ---
 
