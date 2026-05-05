@@ -99,6 +99,25 @@ def _classify_partition(
     b_class = "vB" if is_vB else ("B" if is_B else "non-B")
     m_class = "vM" if is_vM else ("M" if is_M else "non-M")
 
+    # ── Regulatory gaps ────────────────────────────────────────────────────
+    # Gap 1 (non vM, non vB): 3.5 < logKow < 5.0
+    in_gap1 = bool((logkow > 3.5) and (logkow < vb_logkow_threshold))
+    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.5 AND logKoa > 6
+    in_gap2 = bool((logkow > m_logkoc_threshold) and (logkoa > b_logkoa_threshold))
+    # Gap 3 (non M, non B, incl. aquatic): 4.5 < logKow < 5.0 AND logKoa > 6
+    in_gap3 = bool(
+        (logkow > m_logkoc_threshold)
+        and (logkow < vb_logkow_threshold)
+        and (logkoa > b_logkoa_threshold)
+    )
+    gap_labels = []
+    if in_gap1:
+        gap_labels.append("Gap 1")
+    if in_gap2:
+        gap_labels.append("Gap 2")
+    if in_gap3:
+        gap_labels.append("Gap 3")
+
     return {
         "is_B": is_B,
         "is_vB": is_vB,
@@ -109,6 +128,10 @@ def _classify_partition(
         "m_class": m_class,
         "bm_class": b_class,
         "pb_class": m_class,
+        "in_gap1": in_gap1,
+        "in_gap2": in_gap2,
+        "in_gap3": in_gap3,
+        "gap_labels": gap_labels,
         "thresholds": {
             "B_logKoa_gte": float(b_logkoa_threshold),
             "B_logKow_gte": float(b_logkow_threshold),
@@ -116,6 +139,13 @@ def _classify_partition(
             "logKoc_est_from_logKow_offset": float(logkoc_from_kow_offset),
             "M_logKoc_est_lte": float(m_logkoc_threshold),
             "vM_logKoc_est_lte": float(vm_logkoc_threshold),
+            "gap1_logKow_gt": 3.5,
+            "gap1_logKow_lt": float(vb_logkow_threshold),
+            "gap2_logKow_gt": float(m_logkoc_threshold),
+            "gap2_logKoa_gt": float(b_logkoa_threshold),
+            "gap3_logKow_gt": float(m_logkoc_threshold),
+            "gap3_logKow_lt": float(vb_logkow_threshold),
+            "gap3_logKoa_gt": float(b_logkoa_threshold),
         },
     }
 
