@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kawow"
-version = "0.1.1"
+version = "0.1.2"
 description = "Models for partitioning coefficients (logKow, logKoa and logKaw) from molecular structure, including model based on [Naef & Acree 2024](https://doi.org/10.3390/liquids4010011)"
 readme = "README.md"
 requires-python = ">=3.9"

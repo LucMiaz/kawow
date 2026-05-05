@@ -226,15 +226,19 @@ def run_models(
         )
 
     calculators: dict[str, Any] = {}
+    init_errors: dict[str, str] = {}
     for model_name in selected:
-        if model_name == "kawow":
-            calculators[model_name] = PartitionCalculator()
-        elif model_name == "smarts":
-            calculators[model_name] = NaefAcreePartitionCalculator()
-        elif model_name == "smarts_mixed":
-            calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
-        elif model_name == "mqg":
-            calculators[model_name] = MQGPartitionCalculator()
+        try:
+            if model_name == "kawow":
+                calculators[model_name] = PartitionCalculator()
+            elif model_name == "smarts":
+                calculators[model_name] = NaefAcreePartitionCalculator()
+            elif model_name == "smarts_mixed":
+                calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
+            elif model_name == "mqg":
+                calculators[model_name] = MQGPartitionCalculator()
+        except Exception as exc:
+            init_errors[model_name] = str(exc)
 
     pairs = parse_input(inp, fmt=fmt)
     out_rows: list[dict[str, Any]] = []
@@ -254,7 +258,26 @@ def run_models(
             "ok": False,
         }
 
-        for model_name, calculator in calculators.items():
+        for model_name in selected:
+            if model_name in init_errors:
+                row["models"][model_name] = {
+                    "model": model_name,
+                    "status": "error",
+                    "error": init_errors[model_name],
+                    "ok": False,
+                }
+                continue
+
+            calculator = calculators.get(model_name)
+            if calculator is None:
+                row["models"][model_name] = {
+                    "model": model_name,
+                    "status": "error",
+                    "error": "calculator unavailable",
+                    "ok": False,
+                }
+                continue
+
             try:
                 try:
                     pred = calculator.predict(mol, fmt="mol")
