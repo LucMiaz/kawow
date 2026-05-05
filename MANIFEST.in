@@ -1,0 +1,3 @@
+include README.md
+include LICENSE
+recursive-include kawow/data *.json *.pkl *.csv *.txt

@@ -27,7 +27,7 @@ from .io import parse_input
 from .features import compute_features
 from .atom_types import FEATURE_LABELS, N_FEATURES
 
-__version__ = "0.1.1"
+__version__ = "0.1.3"
 __all__ = [
     "PartitionCalculator",
     "MQGPartitionCalculator",
