@@ -102,13 +102,13 @@ def _classify_partition(
     # ── Regulatory gaps ────────────────────────────────────────────────────
     # Gap 1 (non vM, non vB): 3.5 < logKow < 5.0
     in_gap1 = bool((logkow > 3.5) and (logkow < vb_logkow_threshold))
-    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.5 AND logKoa > 6
-    in_gap2 = bool((logkow > m_logkoc_threshold) and (logkoa > b_logkoa_threshold))
-    # Gap 3 (non M, non B, incl. aquatic): 4.5 < logKow < 5.0 AND logKoa > 6
+    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.5 AND logKoa < 6
+    in_gap2 = bool((logkow > m_logkoc_threshold) and (logkoa < b_logkoa_threshold))
+    # Gap 3 (non M, non B, incl. aquatic): 4.5 < logKow < 5.0 AND logKoa < 6
     in_gap3 = bool(
         (logkow > m_logkoc_threshold)
         and (logkow < vb_logkow_threshold)
-        and (logkoa > b_logkoa_threshold)
+        and (logkoa < b_logkoa_threshold)
     )
     gap_labels = []
     if in_gap1:
@@ -142,10 +142,10 @@ def _classify_partition(
             "gap1_logKow_gt": 3.5,
             "gap1_logKow_lt": float(vb_logkow_threshold),
             "gap2_logKow_gt": float(m_logkoc_threshold),
-            "gap2_logKoa_gt": float(b_logkoa_threshold),
+            "gap2_logKoa_lt": float(b_logkoa_threshold),
             "gap3_logKow_gt": float(m_logkoc_threshold),
             "gap3_logKow_lt": float(vb_logkow_threshold),
-            "gap3_logKoa_gt": float(b_logkoa_threshold),
+            "gap3_logKoa_lt": float(b_logkoa_threshold),
         },
     }
 
@@ -617,6 +617,110 @@ def _load_pickle(path: Path) -> dict:
         return pickle.load(f)
 
 
+# ── Naef group-count feature helpers (used by ensemble models) ────────────────
+
+def _compile_naef_patterns(param_csv_path: str | Path) -> list:
+    """Compile a Naef parameter CSV into a list of (smarts_mol, pi, fnc) tuples.
+
+    Skips the 'Const' row.  The returned list has one entry per non-Const row.
+    SMARTS patterns are compiled once; the list can then be reused across many
+    molecules without re-parsing.
+    """
+    import pandas as pd
+    from . import smarts_model as _sm
+
+    df = pd.read_csv(param_csv_path)
+    patterns: list = []
+    for _, row in df.iterrows():
+        if row["Atom Type"] == "Const":
+            continue
+        smarts_str = row["SMARTS"]
+        pi = int(row["pi"]) if not pd.isna(row.get("pi", float("nan"))) else None
+        fnc_name = row["fnc"] if not pd.isna(row.get("fnc", float("nan"))) else None
+
+        smarts_mol = None
+        if not pd.isna(smarts_str):
+            smarts_mol = Chem.MolFromSmarts(smarts_str)
+
+        fnc = None
+        if fnc_name:
+            fnc = getattr(_sm, fnc_name, None)
+
+        patterns.append((smarts_mol, pi, fnc))
+    return patterns
+
+
+def _compute_naef_group_counts(mol, compiled_patterns: list) -> np.ndarray:
+    """Return a float32 count vector for all Naef SMARTS rows (non-Const).
+
+    Parameters
+    ----------
+    mol : RDKit Mol
+    compiled_patterns : list of (smarts_mol | None, pi | None, fnc | None)
+        Pre-compiled pattern list from :func:`_compile_naef_patterns`.
+
+    Returns
+    -------
+    np.ndarray of shape ``(len(compiled_patterns),)``, dtype float32.
+    """
+    from .smarts_model import count_conjugated_neighbor_moieties
+
+    counts = np.zeros(len(compiled_patterns), dtype=np.float32)
+    for i, (smarts_mol, pi, fnc) in enumerate(compiled_patterns):
+        if smarts_mol is not None:
+            matches = mol.GetSubstructMatches(smarts_mol)
+            if matches:
+                if pi is not None:
+                    c = 0
+                    for match in matches:
+                        n_moi, _ = count_conjugated_neighbor_moieties(mol, match[0])
+                        if n_moi == pi:
+                            c += 1
+                    counts[i] = float(c)
+                else:
+                    counts[i] = float(len(matches))
+        elif fnc is not None:
+            counts[i] = float(fnc(mol))
+    return counts
+
+
+def _build_ensemble_feature_vector(
+    mol,
+    pkl: dict,
+    naef_patterns=None,
+) -> np.ndarray | None:
+    """Build the combined feature vector for an ensemble Ridge model.
+
+    The ``pkl`` dict must contain keys ``ensemble_type``, ``mqg_feature_cols``,
+    and optionally ``fp_size``.  ``naef_patterns`` must be supplied when
+    ``ensemble_type`` contains 'naef'.
+
+    Returns ``None`` if any required feature computation fails.
+    """
+    ensemble_type: str = pkl["ensemble_type"]
+    fp_size: int = int(pkl.get("fp_size", 64))
+    mqg_feature_cols: list = pkl["mqg_feature_cols"]
+
+    # MQG eigenvalue + ratio features
+    mqg_full = _compute_mqg_features_with_ratios(mol, fp_size=fp_size)
+    if mqg_full is None:
+        return None
+    x_mqg = mqg_full[mqg_feature_cols]
+
+    parts: list[np.ndarray] = []
+    if "naef" in ensemble_type:
+        if naef_patterns is None:
+            return None
+        parts.append(_compute_naef_group_counts(mol, naef_patterns))
+    if "crippen" in ensemble_type:
+        x_crippen = compute_features(mol)
+        if x_crippen is None:
+            return None
+        parts.append(x_crippen.astype(np.float32))
+    parts.append(x_mqg)
+    return np.concatenate(parts)
+
+
 class PartitionCalculator:
     """
     Predict logKow, logKoa, logKaw from molecular structure using the
@@ -726,7 +830,12 @@ class PartitionCalculator:
 
 
 class MQGPartitionCalculator:
-    """Predict logKow/logKoa/logKaw from MQG eigenvalue fingerprints."""
+    """Predict logKow/logKoa/logKaw from MQG eigenvalue fingerprints.
+
+    Transparently handles both the original RandomForest pkl and any
+    ensemble Ridge pkl placed at the same paths (detected via the
+    ``method`` field in the pkl dict).
+    """
 
     def __init__(self) -> None:
         if not _MQG_AVAILABLE:
@@ -737,19 +846,36 @@ class MQGPartitionCalculator:
         self._kow = _load_pickle(kow_path)
         self._koa = _load_pickle(koa_path)
 
+        self._is_ensemble = self._kow.get("method") == "ridge_ensemble"
+        if self._is_ensemble:
+            naef_kow = self._kow.get("naef_param_file")
+            naef_koa = self._koa.get("naef_param_file")
+            self._naef_patterns_kow = _compile_naef_patterns(naef_kow) if naef_kow else None
+            self._naef_patterns_koa = _compile_naef_patterns(naef_koa) if naef_koa else None
+        else:
+            self._naef_patterns_kow = None
+            self._naef_patterns_koa = None
+
     def _predict_mol(self, mol) -> dict:
-        fp_size = int(self._kow.get("fp_size", 64))
-        feat = _compute_mqg_features_with_ratios(mol, fp_size=fp_size)
-        if feat is None:
-            return {"status": "error", "error": "molecule has no valid MQG spectrum"}
+        if self._is_ensemble:
+            x_kow = _build_ensemble_feature_vector(mol, self._kow, self._naef_patterns_kow)
+            x_koa = _build_ensemble_feature_vector(mol, self._koa, self._naef_patterns_koa)
+            if x_kow is None or x_koa is None:
+                return {"status": "error", "error": "ensemble feature computation failed"}
+            logKow = float(self._kow["model"].predict(x_kow.reshape(1, -1))[0])
+            logKoa = float(self._koa["model"].predict(x_koa.reshape(1, -1))[0])
+        else:
+            fp_size = int(self._kow.get("fp_size", 64))
+            feat = _compute_mqg_features_with_ratios(mol, fp_size=fp_size)
+            if feat is None:
+                return {"status": "error", "error": "molecule has no valid MQG spectrum"}
+            feature_cols_kow = self._kow.get("feature_cols")
+            feature_cols_koa = self._koa.get("feature_cols")
+            x_kow = feat[feature_cols_kow].reshape(1, -1) if feature_cols_kow is not None else feat.reshape(1, -1)
+            x_koa = feat[feature_cols_koa].reshape(1, -1) if feature_cols_koa is not None else feat.reshape(1, -1)
+            logKow = float(self._kow["model"].predict(x_kow)[0])
+            logKoa = float(self._koa["model"].predict(x_koa)[0])
 
-        feature_cols_kow = self._kow.get("feature_cols")
-        feature_cols_koa = self._koa.get("feature_cols")
-        x_kow = feat[feature_cols_kow].reshape(1, -1) if feature_cols_kow is not None else feat.reshape(1, -1)
-        x_koa = feat[feature_cols_koa].reshape(1, -1) if feature_cols_koa is not None else feat.reshape(1, -1)
-
-        logKow = float(self._kow["model"].predict(x_kow)[0])
-        logKoa = float(self._koa["model"].predict(x_koa)[0])
         logKaw = logKow - logKoa
         return {
             "logKow": round(logKow, 3),
@@ -807,3 +933,96 @@ class MQGPartitionCalculator:
             logkoa_prop=logkoa_prop,
             fp_size=fp_size,
         )
+
+
+class EnsemblePartitionCalculator:
+    """Predict logKow/logKoa/logKaw using an ensemble Ridge model.
+
+    Combines MQG eigenvalue features with Naef group counts and/or Crippen
+    (kawow) atom-type counts.  The ``ensemble_type`` must match one of the
+    fitted pkl files in ``kawow/data/``.
+
+    Parameters
+    ----------
+    ensemble_type : str
+        One of ``"naef_mqg"``, ``"crippen_mqg"``, ``"naef_crippen_mqg"``.
+
+    Usage
+    -----
+    >>> calc = EnsemblePartitionCalculator("crippen_mqg")
+    >>> calc.predict("CCCCO")
+    {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
+    """
+
+    _VALID_TYPES = ("naef_mqg", "crippen_mqg", "naef_crippen_mqg")
+
+    def __init__(self, ensemble_type: str) -> None:
+        if ensemble_type not in self._VALID_TYPES:
+            raise ValueError(
+                f"Unknown ensemble_type {ensemble_type!r}. "
+                f"Valid options: {self._VALID_TYPES}"
+            )
+        if not _MQG_AVAILABLE:
+            raise ImportError(
+                "EnsemblePartitionCalculator requires the molecular_quantum_graph package (import name: mqg)."
+            )
+        self._ensemble_type = ensemble_type
+        kow_path = DATA_DIR / f"logkow_{ensemble_type}_model.pkl"
+        koa_path = DATA_DIR / f"logkoa_{ensemble_type}_model.pkl"
+        self._kow = _load_pickle(kow_path)
+        self._koa = _load_pickle(koa_path)
+
+        naef_kow = self._kow.get("naef_param_file")
+        naef_koa = self._koa.get("naef_param_file")
+        self._naef_patterns_kow = _compile_naef_patterns(naef_kow) if naef_kow else None
+        self._naef_patterns_koa = _compile_naef_patterns(naef_koa) if naef_koa else None
+
+    def _predict_mol(self, mol) -> dict:
+        x_kow = _build_ensemble_feature_vector(mol, self._kow, self._naef_patterns_kow)
+        x_koa = _build_ensemble_feature_vector(mol, self._koa, self._naef_patterns_koa)
+        if x_kow is None or x_koa is None:
+            return {"status": "error", "error": "feature computation failed"}
+        logKow = float(self._kow["model"].predict(x_kow.reshape(1, -1))[0])
+        logKoa = float(self._koa["model"].predict(x_koa.reshape(1, -1))[0])
+        logKaw = logKow - logKoa
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKaw, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        if len(results) == 1:
+            return results[0]
+        return results
+
+    def predict_batch(self, smiles_list: list[str]) -> list[dict]:
+        if Chem is None:
+            raise ImportError("RDKit is required for EnsemblePartitionCalculator.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": f"ensemble_{self._ensemble_type}",
+            "ensemble_type": self._ensemble_type,
+            "logKow": {k: v for k, v in self._kow.items() if k != "model"},
+            "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }

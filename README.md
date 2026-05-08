@@ -114,7 +114,7 @@ results = calc.predict("compounds.sdf")   # returns list[dict]
 info = calc.model_info
 print(info["logKow"])
 # {'target': 'logKow', 'n_train': 3234, 'alpha': 51.8,
-#  'r2_cv': 0.9221, 'rmse_cv': 0.5775, ...}
+#  'r2_cv': 0.8980, 'rmse_cv': 0.6643, ...}
 ```
 
 **Re-fit on your own training data:**
@@ -130,14 +130,14 @@ kawow.fit(
 calc = kawow.PartitionCalculator()   # reload after fitting
 ```
 
-### Performance (5-fold cross-validation on Naef & Acree training sets)
+### Performance (shared-fold benchmark on common valid molecules)
 
 | Model | Property | n | R² (cv) | RMSE (cv) |
 |-------|----------|---|---------|----------|
-| `kawow` (Ridge) | log*K*ow | 3 234 | **0.922** | 0.578 |
-| `kawow` (Ridge) | log*K*oa | 1 886 | **0.946** | 0.660 |
-| `smarts_mixed` (hybrid) | log*K*ow | 3 234 | **0.962** | 0.403 |
-| `smarts_mixed` (hybrid) | log*K*oa | 1 886 | **0.968** | 0.532 |
+| `kawow` (Ridge) | log*K*ow | 3 319 | 0.898 | 0.664 |
+| `kawow` (Ridge) | log*K*oa | 1 956 | 0.937 | 0.740 |
+| `smarts_mixed` (hybrid) | log*K*ow | 3 319 | **0.938** | 0.518 |
+| `smarts_mixed` (hybrid) | log*K*oa | 1 956 | **0.943** | 0.702 |
 
 ---
 
