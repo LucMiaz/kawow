@@ -3,8 +3,8 @@
 ## Running multiple models at once
 
 The easiest entry point is `run_models()`, which runs any combination of the
-four available models and returns aligned per-molecule results with B/vB and
-M/vM flags already computed:
+four available models and returns aligned per-molecule results with B/vB,
+M/vM, and regulatory-gap flags already computed:
 
 ```python
 import kawow
@@ -21,10 +21,40 @@ for row in results:
         f"{row['smiles']:35s}  "
         f"kawow logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
         f"  |  mixed logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
+        f"  gaps={kow.get('gap_labels', [])}"
     )
 ```
 
 Available model keys: `"kawow"`, `"smarts"`, `"smarts_mixed"`, `"mqg"`.
+
+### Flagging criteria
+
+Each model result dictionary includes:
+
+**Bioaccumulation** (following doi:10.1126/science.1138275):
+
+| Key | Value | Condition |
+|-----|-------|-----------|
+| `b_class` | `"vB"` | `logKoa ≥ 6` **and** `logKow ≥ 5` |
+| `b_class` | `"B"` | `logKoa ≥ 6` **and** `logKow ≥ 2` |
+| `b_class` | `"non-B"` | otherwise |
+
+**Mobility** — via `logKoc_est = logKow − 0.4` (UBA drinking-water guidance):
+
+| Key | Value | Condition | Equivalent `logKow` |
+|-----|-------|-----------|---------------------|
+| `m_class` | `"vM"` | `logKoc_est ≤ 3.5` | `logKow ≤ 3.9` |
+| `m_class` | `"M"` | `logKoc_est ≤ 4.5` | `logKow ≤ 4.9` |
+| `m_class` | `"non-M"` | otherwise | |
+
+**Regulatory gaps**:
+
+| Key | Condition |
+|-----|-----------|
+| `in_gap1` | `3.5 < logKow < 5.0` |
+| `in_gap2` | `logKow > 4.5` and `logKoa < 6` |
+| `in_gap3` | `4.5 < logKow < 5.0` and `logKoa < 6` |
+| `gap_labels` | list of applicable gap strings, e.g. `["Gap 1", "Gap 3"]` |
 
 ---
 

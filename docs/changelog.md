@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 (2026-05-15)
+
+- Corrected performance metrics throughout README and documentation (values now sourced directly from model files and shared S01∩S02 benchmark)
+- Added Gap 1/2/3 regulatory-gap flags to `_classify_partition()` output (`in_gap1`, `in_gap2`, `in_gap3`, `gap_labels`)
+- Clarified `mqg` model description: Ridge regression *ensemble* of Naef group contributions + Crippen atom-type features + Molecular Quantum Graph fingerprints (not a standalone random forest)
+- Fixed M/vM flagging documentation: M is `logKoc_est ≤ 4.5` (i.e. `logKow ≤ 4.9`), vM is `logKoc_est ≤ 3.5` (i.e. `logKow ≤ 3.9`)
+
 ## 0.1.1 (2026-05-05)
 
 - Added `MQGPartitionCalculator` — random-forest model using Molecular Quantum Graph (MQG) features
@@ -14,7 +21,7 @@
 Initial release.
 
 - 77-feature group-additivity descriptor (72 Crippen atom types + 5 Naef special groups)
-- Ridge regression models for logKow (R²=0.904) and logKoa (R²=0.938)
-- Derived logKaw = logKow − logKoa (held-out R²=0.877 on S03)
+- Ridge regression models for logKow (R² = 0.898, cv) and logKoa (R² = 0.937, cv) on shared S01∩S02 benchmark
+- Derived logKaw = logKow − logKoa (Naef Eq. 2, not directly trained)
 - `PartitionCalculator` accepting SMILES, InChI, SDF files, RDKit Mol objects
 - Pre-fitted JSON model coefficients (Naef & Acree, Liquids 2024 training data)

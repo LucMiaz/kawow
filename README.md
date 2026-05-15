@@ -12,22 +12,29 @@ Group-additivity prediction of **log*K*ow**, **log*K*oa**, and **log*K*aw** from
 
 ### Flagging criteria used in outputs
 
-`run_models(...)` returns B/vB and M/vM flags derived from predicted partition values:
+`run_models(...)` returns B/vB, M/vM, and regulatory-gap flags derived from predicted partition values.
 
-- `B`: `logKoa >= 6` and `logKow >= 2`
-- `vB`: `logKoa >= 6` and `logKow >= 5`
+**Bioaccumulation** (following doi:[10.1126/science.1138275](https://doi.org/10.1126/science.1138275)):
 
-based on `doi:10.1126/science.1138275`.
+| Flag | Condition |
+|------|-----------|
+| `B`  | `logKoa ≥ 6` **and** `logKow ≥ 2` |
+| `vB` | `logKoa ≥ 6` **and** `logKow ≥ 5` |
 
-Mobility is computed via an estimated sorption relation:
+**Mobility** — estimated via `logKoc_est = logKow − 0.4` (UBA drinking-water guidance, [link](https://www.umweltbundesamt.de/en/publikationen/protecting-the-sources-of-our-drinking-water-the)):
 
-- `logKoc_est = logKow - 0.4`
-- `M`: `logKoc_est <= 4.5`
-- `vM`: `logKoc_est <= 3.5`
+| Flag | Condition on `logKoc_est` | Equivalent `logKow` |
+|------|--------------------------|---------------------|
+| `M`  | `logKoc_est ≤ 4.5`       | `logKow ≤ 4.9`      |
+| `vM` | `logKoc_est ≤ 3.5`       | `logKow ≤ 3.9`      |
 
-following UBA drinking-water source protection guidance:
+**Regulatory gaps** (returned as `in_gap1`, `in_gap2`, `in_gap3` booleans and `gap_labels` list):
 
-- https://www.umweltbundesamt.de/en/publikationen/protecting-the-sources-of-our-drinking-water-the
+| Gap | Condition |
+|-----|-----------|
+| Gap 1 | `3.5 < logKow < 5.0` (between vM and vB on *K*ow axis) |
+| Gap 2 | `logKow > 4.5` **and** `logKoa < 6` (non-M, non-B) |
+| Gap 3 | `4.5 < logKow < 5.0` **and** `logKoa < 6` (intersection of Gap 1 and Gap 2) |
 
 ---
 
@@ -49,12 +56,14 @@ pip install -e ".[dev]"
 
 ## Models at a glance
 
+All R² values are from 5-fold cross-validation on the shared S01∩S02 benchmark set (n = 3 319 for log*K*ow; n = 1 956 for log*K*oa), except `smarts` which applies fixed Naef & Acree (2024) parameters directly (no re-fitting).
+
 | Model key | Class | Approach | log*K*ow R² | log*K*oa R² |
 |-----------|-------|----------|-------------|-------------|
-| `kawow` | `PartitionCalculator` | Ridge regression on Crippen + Naef special-group features | 0.922 (cv) | 0.946 (cv) |
-| `smarts` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no refitting) | 0.857 (S01) | 0.785 (S02) |
-| `smarts_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | Naef & Acree additivity + Crippen Ridge hybrid | 0.962 (cv) | 0.968 (cv) |
-| `mqg` | `MQGPartitionCalculator` | Random forest on Molecular Quantum Graph fingerprints | 0.881 (cv) | 0.945 (cv) |
+| `kawow` | `PartitionCalculator` | Ridge regression on Crippen atom-type counts + Naef special-group features | 0.898 (cv) | 0.937 (cv) |
+| `smarts` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.777 |
+| `smarts_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | Naef & Acree SMARTS contributions + Crippen atom-type Ridge hybrid | 0.938 (cv) | 0.943 (cv) |
+| `mqg` | `MQGPartitionCalculator` | Ridge regression ensemble: Naef group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) |
 
 Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
 
@@ -130,14 +139,20 @@ kawow.fit(
 calc = kawow.PartitionCalculator()   # reload after fitting
 ```
 
-### Performance (shared-fold benchmark on common valid molecules)
+### Performance (shared S01∩S02 benchmark, 5-fold CV)
+
+All models are evaluated on the same intersection of S01 and S02 valid molecules. For `kawow`, `smarts_mixed`, and `mqg`, R² and RMSE are from 5-fold cross-validation. For `smarts`, the Naef & Acree (2024) tabulated parameters are applied directly (no refitting).
 
 | Model | Property | n | R² (cv) | RMSE (cv) |
 |-------|----------|---|---------|----------|
-| `kawow` (Ridge) | log*K*ow | 3 319 | 0.898 | 0.664 |
-| `kawow` (Ridge) | log*K*oa | 1 956 | 0.937 | 0.740 |
+| `kawow` (Crippen Ridge) | log*K*ow | 3 319 | 0.898 | 0.664 |
+| `kawow` (Crippen Ridge) | log*K*oa | 1 956 | 0.937 | 0.740 |
+| `smarts` (Naef & Acree) | log*K*ow | 3 319 | 0.857 | 0.785 |
+| `smarts` (Naef & Acree) | log*K*oa | 1 956 | 0.777 | 1.387 |
 | `smarts_mixed` (hybrid) | log*K*ow | 3 319 | **0.938** | 0.518 |
 | `smarts_mixed` (hybrid) | log*K*oa | 1 956 | **0.943** | 0.702 |
+| `mqg` (ensemble) | log*K*ow | 3 319 | **0.940** | 0.510 |
+| `mqg` (ensemble) | log*K*oa | 1 956 | **0.942** | 0.705 |
 
 ---
 
@@ -165,13 +180,16 @@ for mol, coeffs in calc_batch.results.items():
     print(coeffs)
 ```
 
-### Performance on the Naef & Acree training sets
+### Performance (Naef & Acree tabulated parameters, evaluated on benchmark sets)
 
-| Dataset | Property | n | R² | RMSE | MAE |
-|---------|----------|---|-----|------|-----|
-| S01 (Naef 2024) | log*K*ow | 3 344 | **0.857** | 0.786 | 0.543 |
-| S02 (Naef 2024) | log*K*oa | 1 983 | **0.785** | 1.387 | 0.784 |
-| Arp & Hale 2023 (SI) | log*K*ow | 687 | **0.644** | 1.138 | 0.686 |
+The `smarts` model applies the published Naef & Acree (2024) parameters without any re-fitting. Performance is evaluated on the full individual datasets and on the shared S01∩S02 benchmark intersection.
+
+| Dataset | Property | n | R² | RMSE |
+|---------|----------|---|-----|------|
+| S01 (Naef 2024, full) | log*K*ow | 3 344 | **0.857** | 0.786 |
+| S02 (Naef 2024, full) | log*K*oa | 1 983 | **0.785** | 1.387 |
+| S01∩S02 intersection | log*K*ow | 3 319 | 0.857 | 0.785 |
+| S01∩S02 intersection | log*K*oa | 1 956 | 0.777 | 1.387 |
 
 The remaining error is concentrated in specific chemotypes (notably highly heteroatom-rich agrochemical scaffolds), while the broad SMARTS generalization and pi-environment fixes substantially improved overall log*K*oa performance on S02.
 
