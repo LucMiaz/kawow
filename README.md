@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml/badge.svg)](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-green.svg)](LICENSE)
 
 ![Kawow!](logo/kawow.svg)
 
@@ -224,4 +224,4 @@ Arp, H.P.H. and Hale, S.E. 2023. "From Measured Partition Coefficients to the Pr
 
 ## License
 
-MIT
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) — Luc T. Miaz, 2026
