@@ -173,3 +173,37 @@ print(info["logKow"])
 #   'r2_cv': 0.9039, 'rmse_cv': 0.6433, 'intercept': -0.412
 # }
 ```
+
+---
+
+## Regulatory classification performance
+
+kawow evaluates the same binary flags as `run_models()` against experimental benchmark data to produce F1 scores. Evaluation uses 1 083–1 102 molecules that have paired experimental log*K*ow (S01) and log*K*oa (S02) values.
+
+### F1 scores
+
+| Label | Condition | n (+) | `kawow` | `smarts` | `smarts_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
+|-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
+| G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
+| G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
+| G3 | 4.5 < log*K*ow < 5.0 and log*K*oa < 6 | 11 | 0.00 | **0.27** | 0.13 | 0.13 | 0.00 | — |
+| M | log*K*oc_est ≤ 4.5 | 797 | 0.97 | 0.98 | **0.98** | 0.98 | 0.97 | 0.95 |
+| vM | log*K*oc_est ≤ 3.5 | 677 | 0.95 | 0.96 | **0.97** | **0.97** | 0.95 | 0.95 |
+| B | log*K*ow ≥ 2 and log*K*oa ≥ 6 | 503 | 0.94 | 0.94 | **0.96** | 0.95 | 0.95 | 0.94 |
+| vB | log*K*ow ≥ 5 and log*K*oa ≥ 6 | 266 | 0.92 | 0.93 | 0.93 | **0.94** | 0.93 | 0.79 |
+
+n (+): number of true-positive molecules in the benchmark. — = model makes 0 positive predictions (precision undefined). `naef_mqg` and `crippen_mqg` use `EnsemblePartitionCalculator`.
+
+### Precision and recall — `smarts_mixed` (best overall)
+
+| Label | Precision | Recall | F1 |
+|-------|----------:|-------:|---:|
+| G1 | 0.76 | 0.78 | **0.77** |
+| G2 | 0.80 | 0.50 | 0.62 |
+| G3 | 0.20 | 0.09 | 0.13 |
+| M  | 0.97 | 1.00 | **0.98** |
+| vM | 0.95 | 0.99 | **0.97** |
+| B  | 0.96 | 0.97 | **0.96** |
+| vB | 0.99 | 0.89 | 0.93 |
+
+G3 (only 11 true positives) is the hardest class — a compound must be simultaneously in Gap 1 *and* Gap 2, so the base rate is very low (~1 %) and boundary errors dominate.

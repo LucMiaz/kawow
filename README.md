@@ -154,6 +154,22 @@ All models are evaluated on the same intersection of S01 and S02 valid molecules
 | `mqg` (ensemble) | log*K*ow | 3 319 | **0.940** | 0.510 |
 | `mqg` (ensemble) | log*K*oa | 1 956 | **0.942** | 0.705 |
 
+### Regulatory classification performance (F1 scores)
+
+Binary classification F1 scores on the shared S01∩S02 benchmark (1 083–1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
+
+| Label | Condition | n (+) | `kawow` | `smarts` | `smarts_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
+|-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
+| G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
+| G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
+| G3 | 4.5 < log*K*ow < 5.0 and log*K*oa < 6 | 11 | 0.00 | **0.27** | 0.13 | 0.13 | 0.00 | — |
+| M | log*K*oc_est ≤ 4.5 | 797 | 0.97 | 0.98 | **0.98** | 0.98 | 0.97 | 0.95 |
+| vM | log*K*oc_est ≤ 3.5 | 677 | 0.95 | 0.96 | **0.97** | **0.97** | 0.95 | 0.95 |
+| B | log*K*ow ≥ 2 and log*K*oa ≥ 6 | 503 | 0.94 | 0.94 | **0.96** | 0.95 | 0.95 | 0.94 |
+| vB | log*K*ow ≥ 5 and log*K*oa ≥ 6 | 266 | 0.92 | 0.93 | 0.93 | **0.94** | 0.93 | 0.79 |
+
+n (+): true-positive molecule count. — = model makes 0 positive predictions (precision undefined). G3 has only 11 true-positive molecules; most models do not recover this rare class.
+
 ---
 
 ## 2 — `NaefAcreePartitionCalculator` (SMARTS additivity, full transparency)

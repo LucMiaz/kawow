@@ -67,7 +67,7 @@ _MODEL_FILES_MQG = {
     "mqg": (_MODEL_MQG_LOGKOW, _MODEL_MQG_LOGKOA),
 }
 
-_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "mqg")
+_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "naef_mqg", "crippen_mqg", "mqg")
 
 
 def _classify_partition(
@@ -206,7 +206,8 @@ def run_models(
         Any input accepted by :func:`kawow.io.parse_input`.
     models:
         Sequence of model identifiers. Supported values are:
-        ``kawow``, ``smarts``, ``smarts_mixed``, ``mqg``.
+        ``kawow``, ``smarts``, ``smarts_mixed``,
+        ``naef_mqg``, ``crippen_mqg``, ``mqg``.
         If omitted, all available models are used.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
@@ -235,6 +236,10 @@ def run_models(
                 calculators[model_name] = NaefAcreePartitionCalculator()
             elif model_name == "smarts_mixed":
                 calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
+            elif model_name == "naef_mqg":
+                calculators[model_name] = EnsemblePartitionCalculator("naef_mqg")
+            elif model_name == "crippen_mqg":
+                calculators[model_name] = EnsemblePartitionCalculator("crippen_mqg")
             elif model_name == "mqg":
                 calculators[model_name] = MQGPartitionCalculator()
         except Exception as exc:
