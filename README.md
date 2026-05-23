@@ -154,7 +154,7 @@ All models are evaluated on the same intersection of S01 and S02 valid molecules
 | `mqg` (ensemble) | log*K*ow | 3 319 | **0.940** | 0.510 |
 | `mqg` (ensemble) | log*K*oa | 1 956 | **0.942** | 0.705 |
 
-### Regulatory classification performance (F1 scores)
+### Regulatory classification performance (F1 scores)-
 
 Binary classification F1 scores on the shared S01∩S02 benchmark (1 083–1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
 
