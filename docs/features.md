@@ -61,3 +61,41 @@ from kawow.atom_types import CRIPPEN_PATTS, CRIPPEN_ORDER
 for smarts, _ in CRIPPEN_PATTS["C18"]:
     print(smarts)
 ```
+
+---
+
+## PFASGroups features (77-dimensional)
+
+The `pfasgroups` and `pfasgroups_mixed` models use a separate 77-dimensional
+feature vector computed by `kawow.pfasgroups_features.compute_pfasgroups_features`.
+It is designed to capture the halogenated structural character relevant for
+partitioning in fluorinated and chlorinated compounds.
+
+| Part | Indices | Description |
+|------|---------|-------------|
+| A | 0–10 | 11 molecule-level scalars: total F, Cl, Br, I counts; perfluorination and perchlorination density; CF₂ and CCl₂ density; total branching index; heavy atom count; total carbon count |
+| B | 11–13 | 3 aggregate match counts for polyhalogenated groups (PFASGroups IDs 35, 38, 45) |
+| C | 14–28 | 15 per-halogen maximum component sizes for perhalogenated groups (IDs 34, 37, 44) × 5 halogens (F, Cl, Br, I, H) |
+| D | 29–76 | 48 bag-of-groups counts (generic SMARTS groups, IDs 29–76) |
+
+Parts B–D are computed using `PFASGroups.extract_group_features`.
+
+### Accessing PFASGroups features
+
+```python
+from rdkit import Chem
+from kawow.pfasgroups_features import compute_pfasgroups_features, N_FEATURES
+
+print("PFASGroups feature vector size:", N_FEATURES)   # 77
+
+mol = Chem.MolFromSmiles("FC(F)(F)C(F)(F)C(F)(F)F")   # perfluorobutane
+vec = compute_pfasgroups_features(mol)
+
+if vec is not None:
+    print("Part A (mol scalars):", vec[:11])
+    print("Part D (group counts, non-zero):", [(i, v) for i, v in enumerate(vec[29:], 29) if v > 0])
+```
+
+The `pfasgroups_mixed` model concatenates the 77-dim PFASGroups vector with the
+77-dim Crippen atom-type vector (Section above), giving a 154-dimensional input.
+

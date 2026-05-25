@@ -38,6 +38,14 @@ NaefAcreeCrippenMixedPartitionCalculator
    :undoc-members:
    :show-inheritance:
 
+PFASGroupsPartitionCalculator
+------------------------------
+
+.. autoclass:: kawow.PFASGroupsPartitionCalculator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module-level functions
 ----------------------
 

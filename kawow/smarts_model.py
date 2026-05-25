@@ -305,7 +305,7 @@ class NaefAcreePartitionCalculator:
                     if smarts is None:
                         raise Exception(f"Invalid SMARTS for ID {row['Entry']} in {param} parameters: {_smarts}. Error: smarts is None after parsing")
                     try:
-                        smarts.UpdatePropertyCache()
+                        smarts.UpdatePropertyCache(strict=False)
                     except Exception as e:
                         print(f"Error updating property cache for SMARTS ID {row['Entry']} in {param}")
                     try:

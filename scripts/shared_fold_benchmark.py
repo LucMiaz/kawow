@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import math
 import sys
 from dataclasses import dataclass
@@ -22,6 +23,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from kawow.features import compute_features  # noqa: E402
+from kawow.metrics import (  # noqa: E402
+    compare_correlations_bf,
+    jeffreys_bf_corr,
+    lin_ccc,
+    nrmse,
+    y_randomization_test,
+)
 from kawow.model import (  # noqa: E402
     _compile_naef_patterns,
     _compute_mqg_features_with_ratios,
@@ -29,6 +37,7 @@ from kawow.model import (  # noqa: E402
     _load_pickle,
 )
 from kawow.smarts_model import NaefAcreePartitionCalculator  # noqa: E402
+from kawow.pfasgroups_features import compute_pfasgroups_features  # noqa: E402
 from scripts.fit_mixed_naef_crippen import (  # noqa: E402
     _append_crippen_rows,
     _compile_specs,
@@ -65,6 +74,7 @@ class EndpointData:
     X_mqg: np.ndarray
     X_winner: np.ndarray
     pred_smarts: np.ndarray
+    X_pfasgroups: np.ndarray
 
 
 def _load_rows(sdf_path: Path, value_prop: str) -> list[tuple[Chem.Mol, str, float]]:
@@ -127,16 +137,21 @@ def _build_endpoint_data(
     X_mqg = []
     X_winner = []
     pred_smarts = []
+    X_pfasgroups = []
 
-    for mol, _name, value in rows:
+    for i, (mol, _name, value) in enumerate(rows):
         x_crippen = compute_features(mol)
         x_mqg_full = _compute_mqg_features_with_ratios(mol, fp_size=int(pure_mqg_pkl.get("fp_size", 64)))
         x_smarts = _safe_smarts_predict(smarts_calc, mol, endpoint)
         x_mixed = _feature_vector(mol, mixed_specs)
         x_naef = _compute_naef_group_counts(mol, naef_patterns)
+        x_pg = compute_pfasgroups_features(mol)
 
-        if x_crippen is None or x_mqg_full is None or not np.isfinite(x_smarts) or x_mixed is None:
+        if x_crippen is None or x_mqg_full is None or not np.isfinite(x_smarts) or x_mixed is None or x_pg is None:
             continue
+
+        if (i + 1) % 500 == 0:
+            print(f"  [{endpoint}] feature extraction: {i + 1}/{len(rows)}", flush=True)
 
         ys.append(value)
         X_kawow.append(x_crippen.astype(np.float32))
@@ -144,6 +159,7 @@ def _build_endpoint_data(
         X_mqg.append(x_mqg_full[pure_mqg_pkl["feature_cols"]].astype(np.float32))
         X_winner.append(np.concatenate([x_naef, x_crippen.astype(np.float32), x_mqg_full[winner_pkl["mqg_feature_cols"]].astype(np.float32)]))
         pred_smarts.append(x_smarts)
+        X_pfasgroups.append(x_pg)
 
     return EndpointData(
         endpoint=endpoint,
@@ -156,6 +172,7 @@ def _build_endpoint_data(
         X_mqg=np.array(X_mqg, dtype=np.float32),
         X_winner=np.array(X_winner, dtype=np.float32),
         pred_smarts=np.array(pred_smarts, dtype=np.float64),
+        X_pfasgroups=np.array(X_pfasgroups, dtype=np.float32),
     )
 
 
@@ -263,20 +280,48 @@ def _fit_predict_ensemble(X_train: np.ndarray, y_train: np.ndarray, X_test: np.n
 
 def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, threshold: float) -> dict[str, float]:
     r2 = float(r2_score(y_true, y_pred))
-    rmse = float(math.sqrt(mean_squared_error(y_true, y_pred)))
+    rmse_val = float(math.sqrt(mean_squared_error(y_true, y_pred)))
     y_bin = (y_true >= threshold).astype(int)
     auc = float(roc_auc_score(y_bin, y_pred)) if len(np.unique(y_bin)) > 1 else float("nan")
-    return {"r2": r2, "rmse": rmse, "auc": auc}
+    r_corr = float(np.corrcoef(y_true, y_pred)[0, 1]) if len(y_true) > 1 else float("nan")
+    _bf = jeffreys_bf_corr(r_corr, len(y_true))
+    _nm = nrmse(y_true, y_pred)
+    return {
+        "r2":          r2,
+        "rmse":        rmse_val,
+        "auc":         auc,
+        "ccc":         float(lin_ccc(y_true, y_pred)),
+        "nrmse_sd":    _nm["nrmse_sd"],
+        "nrmse_range": _nm["nrmse_range"],
+        "bf10_log10":  _bf["log10_bf10"],
+    }
 
 
-def _benchmark_endpoint(data: EndpointData) -> list[dict[str, float | str | int]]:
+def _benchmark_endpoint(
+    data: EndpointData,
+    do_y_rand: bool = False,
+) -> tuple[list[dict[str, float | str | int]], list[dict], list[dict]]:
+    """Returns (rows, pairwise_bf_rows, y_rand_rows)."""
     outer_kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    X_pg_mixed = np.hstack([data.X_pfasgroups, data.X_kawow])
     preds = {
         "kawow": np.full(len(data.y), np.nan, dtype=np.float64),
         "smarts": data.pred_smarts.copy(),
         "smarts_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
         "mqg": np.full(len(data.y), np.nan, dtype=np.float64),
         "naef_crippen_mqg": np.full(len(data.y), np.nan, dtype=np.float64),
+        "pfasgroups": np.full(len(data.y), np.nan, dtype=np.float64),
+        "pfasgroups_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
+    }
+
+    # Store per-fold X matrices for y-randomisation (only models with X)
+    X_by_model = {
+        "kawow": data.X_kawow,
+        "smarts_mixed": data.X_mixed,
+        "mqg": data.X_mqg,
+        "naef_crippen_mqg": data.X_winner,
+        "pfasgroups": data.X_pfasgroups,
+        "pfasgroups_mixed": X_pg_mixed,
     }
 
     for train_idx, test_idx in outer_kf.split(data.y):
@@ -284,25 +329,85 @@ def _benchmark_endpoint(data: EndpointData) -> list[dict[str, float | str | int]
         preds["smarts_mixed"][test_idx] = _fit_predict_mixed(data.X_mixed[train_idx], data.y[train_idx], data.X_mixed[test_idx])
         preds["mqg"][test_idx] = _fit_predict_mqg(data.X_mqg[train_idx], data.y[train_idx], data.X_mqg[test_idx])
         preds["naef_crippen_mqg"][test_idx] = _fit_predict_ensemble(data.X_winner[train_idx], data.y[train_idx], data.X_winner[test_idx])
+        preds["pfasgroups"][test_idx] = _fit_predict_ensemble(data.X_pfasgroups[train_idx], data.y[train_idx], data.X_pfasgroups[test_idx])
+        preds["pfasgroups_mixed"][test_idx] = _fit_predict_ensemble(X_pg_mixed[train_idx], data.y[train_idx], X_pg_mixed[test_idx])
 
+    # Per-model metrics
     rows: list[dict[str, float | str | int]] = []
     for model_name, y_pred in preds.items():
         metrics = _compute_metrics(data.y, y_pred, data.threshold)
         rows.append({
-            "endpoint": data.endpoint,
-            "model": model_name,
-            "n": int(len(data.y)),
-            "r2_cv": round(metrics["r2"], 4),
-            "rmse_cv": round(metrics["rmse"], 4),
-            "auc_cv": round(metrics["auc"], 4) if np.isfinite(metrics["auc"]) else np.nan,
-            "raw_n": int(data.raw_n),
-            "common_n": int(data.common_n),
-            "threshold": data.threshold,
+            "endpoint":      data.endpoint,
+            "model":         model_name,
+            "n":             int(len(data.y)),
+            "r2_cv":         round(metrics["r2"],          4),
+            "rmse_cv":       round(metrics["rmse"],        4),
+            "ccc_cv":        round(metrics["ccc"],         4),
+            "nrmse_sd_cv":   round(metrics["nrmse_sd"],    4),
+            "nrmse_range_cv":round(metrics["nrmse_range"], 4),
+            "bf10_log10_cv": round(metrics["bf10_log10"],  2) if np.isfinite(metrics["bf10_log10"]) else np.nan,
+            "auc_cv":        round(metrics["auc"],         4) if np.isfinite(metrics["auc"]) else np.nan,
+            "raw_n":         int(data.raw_n),
+            "common_n":      int(data.common_n),
+            "threshold":     data.threshold,
         })
-    return rows
+
+    # Pairwise Steiger BF rows
+    model_names = list(preds.keys())
+    corrs = {}
+    for mn, yp in preds.items():
+        fin = np.isfinite(yp) & np.isfinite(data.y)
+        if fin.sum() > 1:
+            corrs[mn] = float(np.corrcoef(data.y[fin], yp[fin])[0, 1])
+        else:
+            corrs[mn] = float("nan")
+
+    pairwise_rows: list[dict] = []
+    for i, m1 in enumerate(model_names):
+        for m2 in model_names[i + 1:]:
+            r12 = corrs.get(m1, float("nan"))
+            r13 = corrs.get(m2, float("nan"))
+            # r23: correlation between the two model predictions
+            p1, p2 = preds[m1], preds[m2]
+            fin23 = np.isfinite(p1) & np.isfinite(p2)
+            r23 = float(np.corrcoef(p1[fin23], p2[fin23])[0, 1]) if fin23.sum() > 1 else float("nan")
+            bf_res = compare_correlations_bf(r12, r13, r23, int(len(data.y)))
+            pairwise_rows.append({
+                "endpoint": data.endpoint,
+                "model_1":  m1,
+                "model_2":  m2,
+                "r_model1": round(r12, 4),
+                "r_model2": round(r13, 4),
+                "r_inter":  round(r23, 4),
+                "t":        round(bf_res["t"], 3) if np.isfinite(bf_res["t"]) else np.nan,
+                "log10_bf": round(bf_res["log10_bf"], 2) if np.isfinite(bf_res["log10_bf"]) else np.nan,
+                "interpretation": bf_res["interpretation"],
+            })
+
+    # Y-randomisation rows (only for models with X matrices)
+    y_rand_rows: list[dict] = []
+    if do_y_rand:
+        for mn, X_mat in X_by_model.items():
+            print(f"  Y-randomisation: {data.endpoint} × {mn} (1000 permutations) …", flush=True)
+            res = y_randomization_test(X_mat, data.y, n_permutations=1000, n_splits=5)
+            y_rand_rows.append({
+                "endpoint":      data.endpoint,
+                "model":         mn,
+                **{k: round(v, 4) if isinstance(v, float) else v for k, v in res.items()},
+            })
+
+    return rows, pairwise_rows, y_rand_rows
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Shared-fold benchmark for kawow models.")
+    parser.add_argument(
+        "--y-randomization", action="store_true",
+        help="Run Y-randomisation test (1000 permutations) for all trainable models. "
+             "Saves y_randomization.csv to the output directory.",
+    )
+    args = parser.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     kow = _build_endpoint_data(
@@ -326,14 +431,37 @@ def main() -> None:
         mixed_base_csv=KOA_BASE,
     )
 
-    rows = _benchmark_endpoint(kow) + _benchmark_endpoint(koa)
-    df = pd.DataFrame(rows)
+    kow_rows, kow_pairs, kow_yrand = _benchmark_endpoint(kow, do_y_rand=args.y_randomization)
+    koa_rows, koa_pairs, koa_yrand = _benchmark_endpoint(koa, do_y_rand=args.y_randomization)
+
+    all_rows = kow_rows + koa_rows
+    df = pd.DataFrame(all_rows)
     out_path = OUT_DIR / "shared_fold_benchmark.csv"
     df.to_csv(out_path, index=False)
-
     print("Shared-fold benchmark on common valid molecules")
     print(df.to_string(index=False))
     print(f"\nSaved: {out_path}")
+
+    # Pairwise Steiger BF table
+    all_pairs = kow_pairs + koa_pairs
+    if all_pairs:
+        df_pairs = pd.DataFrame(all_pairs)
+        out_pairs = OUT_DIR / "pairwise_bfs.csv"
+        df_pairs.to_csv(out_pairs, index=False)
+        print(f"\nPairwise Bayes factors (Steiger 1980):")
+        print(df_pairs[["endpoint", "model_1", "model_2", "log10_bf", "interpretation"]].to_string(index=False))
+        print(f"\nSaved: {out_pairs}")
+
+    # Y-randomisation results
+    if args.y_randomization:
+        all_yrand = kow_yrand + koa_yrand
+        if all_yrand:
+            df_yrand = pd.DataFrame(all_yrand)
+            out_yrand = OUT_DIR / "y_randomization.csv"
+            df_yrand.to_csv(out_yrand, index=False)
+            print(f"\nY-randomisation test results:")
+            print(df_yrand[["endpoint", "model", "observed_r2", "perm_r2_mean", "perm_r2_std", "p_value"]].to_string(index=False))
+            print(f"\nSaved: {out_yrand}")
 
 
 if __name__ == "__main__":

@@ -25,7 +25,8 @@ for row in results:
     )
 ```
 
-Available model keys: `"kawow"`, `"smarts"`, `"smarts_mixed"`, `"mqg"`.
+Available model keys: `"kawow"`, `"smarts"`, `"smarts_mixed"`, `"mqg"`,
+`"pfasgroups"`, `"pfasgroups_mixed"`.
 
 ### Flagging criteria
 
@@ -170,7 +171,12 @@ info = calc.model_info
 print(info["logKow"])
 # {
 #   'target': 'logKow', 'n_train': 3332, 'alpha': 37.28,
-#   'r2_cv': 0.9039, 'rmse_cv': 0.6433, 'intercept': -0.412
+#   'r2_cv': 0.8980, 'rmse_cv': 0.6643, 'intercept': -0.412,
+#   'ccc_cv': 0.9462,            # Lin's concordance correlation coefficient
+#   'nrmse_sd_cv': 0.3194,       # RMSE / σ(logKow_train)
+#   'nrmse_range_cv': 0.0388,    # RMSE / range(logKow_train)
+#   'bf10_log10_cv': '>10^300',  # log₁₀ Bayes factor (decisive evidence for ρ ≠ 0)
+#   'r_ci95_cv': [0.944, 0.951], # 95 % Fisher-z CI on cross-validated Pearson ρ
 # }
 ```
 

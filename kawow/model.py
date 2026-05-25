@@ -67,7 +67,7 @@ _MODEL_FILES_MQG = {
     "mqg": (_MODEL_MQG_LOGKOW, _MODEL_MQG_LOGKOA),
 }
 
-_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "naef_mqg", "crippen_mqg", "mqg")
+_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "naef_mqg", "crippen_mqg", "mqg", "pfasgroups", "pfasgroups_mixed")
 
 
 def _classify_partition(
@@ -207,7 +207,8 @@ def run_models(
     models:
         Sequence of model identifiers. Supported values are:
         ``kawow``, ``smarts``, ``smarts_mixed``,
-        ``naef_mqg``, ``crippen_mqg``, ``mqg``.
+        ``naef_mqg``, ``crippen_mqg``, ``mqg``,
+        ``pfasgroups``, ``pfasgroups_mixed``.
         If omitted, all available models are used.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
@@ -242,6 +243,10 @@ def run_models(
                 calculators[model_name] = EnsemblePartitionCalculator("crippen_mqg")
             elif model_name == "mqg":
                 calculators[model_name] = MQGPartitionCalculator()
+            elif model_name == "pfasgroups":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups")
+            elif model_name == "pfasgroups_mixed":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_mixed")
         except Exception as exc:
             init_errors[model_name] = str(exc)
 
@@ -352,6 +357,13 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
     r2   = r2_score(y, y_cv)
     rmse = float(mean_squared_error(y, y_cv) ** 0.5)
 
+    # Additional metrics
+    from kawow.metrics import lin_ccc as _lin_ccc, nrmse as _nrmse, jeffreys_bf_corr as _jbf
+    _r_cv = float(np.corrcoef(y, y_cv)[0, 1]) if len(y) > 1 else float("nan")
+    _ccc  = _lin_ccc(y, y_cv)
+    _nm   = _nrmse(y, y_cv)
+    _bf   = _jbf(_r_cv, len(y))
+
     # Extract linear coefficients for the JSON model
     scaler = model.named_steps["standardscaler"]
     ridge  = model.named_steps["ridgecv"]
@@ -370,12 +382,18 @@ def _fit_and_save(X: np.ndarray, y: np.ndarray, out_path: Path, target: str) -> 
         "alpha": float(ridge.alpha_),
         "r2_cv": round(r2, 4),
         "rmse_cv": round(rmse, 4),
+        "ccc_cv": round(_ccc, 4),
+        "nrmse_sd_cv": round(_nm["nrmse_sd"], 4),
+        "nrmse_range_cv": round(_nm["nrmse_range"], 4),
+        "bf10_log10_cv": round(_bf["log10_bf10"], 2),
+        "r_ci95_cv": [round(_bf["ci95_lo"], 3), round(_bf["ci95_hi"], 3)],
         "intercept": intercept,
         "weights": {label: float(coefs[i]) for i, label in enumerate(FEATURE_LABELS)},
     }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
     print(f"  [{target}] n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  "
+          f"CCC={_ccc:.4f}  NRMSE\u03c3={_nm['nrmse_sd']:.4f}  "
           f"alpha={ridge.alpha_:.4g}  \u2192 {out_path.name}")
     return result
 
@@ -565,6 +583,13 @@ def _fit_mqg_and_save(
     rmse = float(mean_squared_error(y, y_cv) ** 0.5)
     model.fit(X_sel, y)
 
+    # Additional metrics for MQG model
+    from kawow.metrics import lin_ccc as _lin_ccc, nrmse as _nrmse, jeffreys_bf_corr as _jbf
+    _r_cv_mqg = float(np.corrcoef(y, y_cv)[0, 1]) if len(y) > 1 else float("nan")
+    _ccc_mqg  = _lin_ccc(y, y_cv)
+    _nm_mqg   = _nrmse(y, y_cv)
+    _bf_mqg   = _jbf(_r_cv_mqg, len(y))
+
     payload = {
         "target": target,
         "method": "mqg_random_forest",
@@ -577,6 +602,11 @@ def _fit_mqg_and_save(
         "feature_cols": feature_cols,
         "r2_cv": round(r2, 4),
         "rmse_cv": round(rmse, 4),
+        "ccc_cv": round(_ccc_mqg, 4),
+        "nrmse_sd_cv": round(_nm_mqg["nrmse_sd"], 4),
+        "nrmse_range_cv": round(_nm_mqg["nrmse_range"], 4),
+        "bf10_log10_cv": round(_bf_mqg["log10_bf10"], 2),
+        "r_ci95_cv": [round(_bf_mqg["ci95_lo"], 3), round(_bf_mqg["ci95_hi"], 3)],
         "model": model,
     }
     with open(out_path, "wb") as f:
@@ -584,6 +614,7 @@ def _fit_mqg_and_save(
 
     print(
         f"  [{target} MQG] n={len(y)}  R\u00b2={r2:.4f}  RMSE={rmse:.4f}  "
+        f"CCC={_ccc_mqg:.4f}  NRMSE\u03c3={_nm_mqg['nrmse_sd']:.4f}  "
         f"({len(feature_cols)} features total)  -> {out_path.name}"
     )
     return payload
@@ -1028,6 +1059,107 @@ class EnsemblePartitionCalculator:
         return {
             "model": f"ensemble_{self._ensemble_type}",
             "ensemble_type": self._ensemble_type,
+            "logKow": {k: v for k, v in self._kow.items() if k != "model"},
+            "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }
+
+
+class PFASGroupsPartitionCalculator:
+    """Predict logKow/logKoa/logKaw using the PFASGroups 77-dim descriptor.
+
+    Uses a Ridge regression pipeline (StandardScaler + RidgeCV) fitted on
+    the S01/S02 Naef & Acree (2024) experimental datasets.  Feature
+    extraction relies on :mod:`kawow.pfasgroups_features`.
+
+    Parameters
+    ----------
+    variant : str
+        ``"pfasgroups"`` — Ridge on 77-dim PFASGroups feature vector.
+        ``"pfasgroups_mixed"`` — Ridge on PFASGroups (77) + Crippen (77)
+        concatenated features (154-dim).
+
+    Usage
+    -----
+    >>> calc = PFASGroupsPartitionCalculator("pfasgroups")
+    >>> calc.predict("FC(F)(F)C(F)(F)F")
+    {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
+    """
+
+    _VALID_VARIANTS = ("pfasgroups", "pfasgroups_mixed")
+
+    def __init__(self, variant: str = "pfasgroups") -> None:
+        if variant not in self._VALID_VARIANTS:
+            raise ValueError(
+                f"Unknown variant {variant!r}. Valid options: {self._VALID_VARIANTS}"
+            )
+        from .pfasgroups_features import compute_pfasgroups_features as _cpf
+        self._compute_pfasgroups_features = _cpf
+        self._variant = variant
+        self._use_crippen = variant == "pfasgroups_mixed"
+
+        kow_path = DATA_DIR / f"logkow_{variant}_model.pkl"
+        koa_path = DATA_DIR / f"logkoa_{variant}_model.pkl"
+        self._kow = _load_pickle(kow_path)
+        self._koa = _load_pickle(koa_path)
+
+    def _feature_vector(self, mol) -> tuple:
+        """Return (x_kow, x_koa) feature arrays or (None, None) on failure."""
+        x_pg = self._compute_pfasgroups_features(mol)
+        if x_pg is None:
+            return None, None
+        if self._use_crippen:
+            x_cr = compute_features(mol)
+            if x_cr is None:
+                return None, None
+            x = np.hstack([x_pg, x_cr.astype(np.float32)])
+        else:
+            x = x_pg
+        return x, x   # same feature space for both endpoints
+
+    def _predict_mol(self, mol) -> dict:
+        x_kow, x_koa = self._feature_vector(mol)
+        if x_kow is None:
+            return {"status": "error", "error": "PFASGroups feature computation failed"}
+        logKow = float(self._kow["model"].predict(x_kow.reshape(1, -1))[0])
+        logKoa = float(self._koa["model"].predict(x_koa.reshape(1, -1))[0])
+        logKaw = logKow - logKoa
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKaw, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        if len(results) == 1:
+            return results[0]
+        return results
+
+    def predict_batch(self, smiles_list: list[str]) -> list[dict]:
+        if Chem is None:
+            raise ImportError("RDKit is required for PFASGroupsPartitionCalculator.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": self._variant,
             "logKow": {k: v for k, v in self._kow.items() if k != "model"},
             "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
         }
