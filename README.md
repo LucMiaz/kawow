@@ -165,7 +165,7 @@ All values are from 5-fold cross-validation on the shared S01∩S02 intersection
 | `mqg` (ensemble) | log*K*oa | 1 956 | **0.942** | 0.705 | 5-fold CV |
 | `mqg` (ensemble) | log*K*aw | 2 130 | **0.913** | 0.882 | external (S03 full) |
 
-### Regulatory classification performance (F1 scores)
+### Regulatory classification performance (F1 scores)-
 
 Binary classification F1 scores on the shared S01∩S02 benchmark (1 083–1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
 

@@ -4,8 +4,8 @@
 
 Each molecule is encoded as a **77-dimensional feature vector**:
 
-- **Features 0–71**: Crippen atom-type counts (72 types)
-- **Features 72–76**: Naef special groups (5 values)
+- **Features 0-71**: Crippen atom-type counts (72 types)
+- **Features 72-76**: Naef special groups (5 values)
 
 ## Crippen atom types
 
