@@ -266,6 +266,16 @@ In addition to R² and RMSE, kawow reports the following metrics for each traine
 | `smarts_mixed` | logKoa | 1956 | 0.971 | 0.239 | 0.041 | >10^300 |
 | `mqg` | logKow | 3319 | 0.483 | 0.817 | 0.099 | >10^300 |
 | `mqg` | logKoa | 1956 | 0.783 | 0.594 | 0.102 | >10^300 |
+| `naef_crippen_mqg` | logKow | 3319 | 0.969 | 0.245 | 0.030 | >10^300 |
+| `naef_crippen_mqg` | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
+| `pfasgroups` | logKow | 3319 | 0.880 | 0.464 | 0.056 | >10^300 |
+| `pfasgroups` | logKoa | 1956 | 0.945 | 0.322 | 0.056 | >10^300 |
+| `pfasgroups_mixed` | logKow | 3319 | 0.954 | 0.298 | 0.036 | >10^300 |
+| `pfasgroups_mixed` | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
+| `pfasgroups_naef` | logKow | 3319 | 0.969 | 0.246 | 0.030 | >10^300 |
+| `pfasgroups_naef` | logKoa | 1956 | 0.968 | 0.247 | 0.043 | >10^300 |
+| `pfasgroups_naef_mixed` | logKow | 3319 | 0.970 | 0.240 | 0.029 | >10^300 |
+| `pfasgroups_naef_mixed` | logKoa | 1956 | 0.970 | 0.239 | 0.041 | >10^300 |
 
 <!-- METRICS_DATA_END -->
 
@@ -273,21 +283,14 @@ Access these via `model_info` (see code example above) or via the benchmark scri
 
 ### Y-randomization (permutation test)
 
-Run via `shared_fold_benchmark.py --y-randomization` (1 000 permutations, Ridge 5-fold CV). Only trainable models (kawow, smarts_mixed, mqg, naef_crippen_mqg) are tested; the pure SMARTS lookup is excluded. Results saved to `y_randomization.csv`.
+Run via `shared_fold_benchmark.py --y-randomization` (default: 1 000 permutations, Ridge 5-fold CV).
+Trainable models are tested (kawow, smarts_mixed, mqg, naef_crippen_mqg, pfasgroups,
+pfasgroups_mixed, pfasgroups_naef, pfasgroups_naef_mixed); the pure SMARTS lookup is excluded.
+Results are saved to `tests/out/y_randomization.csv`.
 
 A non-significant p-value (fraction of permuted R² ≥ observed R²) confirms the model captures genuine structure–property relationships rather than overfitting to label order.
-**Y-randomization results:**
-
-| Endpoint | Model | Observed R² | Mean perm. R² | p-value |
-|----------|-------|-------------|---------------|---------|
-| logKow | kawow | 0.897 | -0.002 | <0.0001 |
-| logKow | smarts_mixed | 0.933 | -0.007 | <0.0001 |
-| logKow | mqg | 0.144 | -0.002 | <0.0001 |
-| logKow | naef_crippen_mqg | 0.939 | -0.008 | <0.0001 |
-| logKoa | kawow | 0.936 | -0.003 | <0.0001 |
-| logKoa | smarts_mixed | 0.944 | -0.006 | <0.0001 |
-| logKoa | mqg | 0.483 | -0.002 | <0.0001 |
-| logKoa | naef_crippen_mqg | 0.941 | -0.007 | <0.0001 |
+Use the CSV directly for publication numbers, because observed values depend on run settings
+(e.g., max-samples/permutation count) while permutation baselines remain near zero.
 
 
 ---

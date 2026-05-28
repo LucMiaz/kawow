@@ -67,7 +67,18 @@ _MODEL_FILES_MQG = {
     "mqg": (_MODEL_MQG_LOGKOW, _MODEL_MQG_LOGKOA),
 }
 
-_AVAILABLE_MODEL_NAMES = ("kawow", "smarts", "smarts_mixed", "naef_mqg", "crippen_mqg", "mqg", "pfasgroups", "pfasgroups_mixed")
+_AVAILABLE_MODEL_NAMES = (
+    "kawow",
+    "smarts",
+    "smarts_mixed",
+    "naef_mqg",
+    "crippen_mqg",
+    "mqg",
+    "pfasgroups",
+    "pfasgroups_mixed",
+    "pfasgroups_naef",
+    "pfasgroups_naef_mixed",
+)
 
 
 def _classify_partition(
@@ -208,7 +219,8 @@ def run_models(
         Sequence of model identifiers. Supported values are:
         ``kawow``, ``smarts``, ``smarts_mixed``,
         ``naef_mqg``, ``crippen_mqg``, ``mqg``,
-        ``pfasgroups``, ``pfasgroups_mixed``.
+        ``pfasgroups``, ``pfasgroups_mixed``,
+        ``pfasgroups_naef``, ``pfasgroups_naef_mixed``.
         If omitted, all available models are used.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
@@ -247,6 +259,10 @@ def run_models(
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups")
             elif model_name == "pfasgroups_mixed":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_mixed")
+            elif model_name == "pfasgroups_naef":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef")
+            elif model_name == "pfasgroups_naef_mixed":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_mixed")
         except Exception as exc:
             init_errors[model_name] = str(exc)
 
@@ -1077,6 +1093,8 @@ class PFASGroupsPartitionCalculator:
         ``"pfasgroups"`` — Ridge on 77-dim PFASGroups feature vector.
         ``"pfasgroups_mixed"`` — Ridge on PFASGroups (77) + Crippen (77)
         concatenated features (154-dim).
+        ``"pfasgroups_naef"`` — Ridge on PFASGroups (77) + Naef group counts.
+        ``"pfasgroups_naef_mixed"`` — Ridge on PFASGroups + Naef group counts + Crippen.
 
     Usage
     -----
@@ -1085,7 +1103,12 @@ class PFASGroupsPartitionCalculator:
     {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
     """
 
-    _VALID_VARIANTS = ("pfasgroups", "pfasgroups_mixed")
+    _VALID_VARIANTS = (
+        "pfasgroups",
+        "pfasgroups_mixed",
+        "pfasgroups_naef",
+        "pfasgroups_naef_mixed",
+    )
 
     def __init__(self, variant: str = "pfasgroups") -> None:
         if variant not in self._VALID_VARIANTS:
@@ -1095,7 +1118,14 @@ class PFASGroupsPartitionCalculator:
         from .pfasgroups_features import compute_pfasgroups_features as _cpf
         self._compute_pfasgroups_features = _cpf
         self._variant = variant
-        self._use_crippen = variant == "pfasgroups_mixed"
+        self._use_crippen = variant in {"pfasgroups_mixed", "pfasgroups_naef_mixed"}
+        self._use_naef = variant in {"pfasgroups_naef", "pfasgroups_naef_mixed"}
+
+        self._naef_patterns_kow = None
+        self._naef_patterns_koa = None
+        if self._use_naef:
+            self._naef_patterns_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
+            self._naef_patterns_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
 
         kow_path = DATA_DIR / f"logkow_{variant}_model.pkl"
         koa_path = DATA_DIR / f"logkoa_{variant}_model.pkl"
@@ -1107,14 +1137,32 @@ class PFASGroupsPartitionCalculator:
         x_pg = self._compute_pfasgroups_features(mol)
         if x_pg is None:
             return None, None
+
+        x_cr = None
         if self._use_crippen:
             x_cr = compute_features(mol)
             if x_cr is None:
                 return None, None
-            x = np.hstack([x_pg, x_cr.astype(np.float32)])
-        else:
-            x = x_pg
-        return x, x   # same feature space for both endpoints
+            x_cr = x_cr.astype(np.float32)
+
+        x_naef_kow = None
+        x_naef_koa = None
+        if self._use_naef:
+            x_naef_kow = _compute_naef_group_counts(mol, self._naef_patterns_kow)
+            x_naef_koa = _compute_naef_group_counts(mol, self._naef_patterns_koa)
+
+        parts_kow = [x_pg]
+        parts_koa = [x_pg]
+        if self._use_naef:
+            parts_kow.append(x_naef_kow)
+            parts_koa.append(x_naef_koa)
+        if self._use_crippen:
+            parts_kow.append(x_cr)
+            parts_koa.append(x_cr)
+
+        x_kow = np.hstack(parts_kow).astype(np.float32)
+        x_koa = np.hstack(parts_koa).astype(np.float32)
+        return x_kow, x_koa
 
     def _predict_mol(self, mol) -> dict:
         x_kow, x_koa = self._feature_vector(mol)

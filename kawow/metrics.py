@@ -17,7 +17,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from sklearn.linear_model import RidgeCV
+from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold, cross_val_predict
 from sklearn.pipeline import make_pipeline
@@ -143,13 +143,13 @@ def compare_correlations_bf(
     log10_bf = log_bf * _LOG10E
 
     if log10_bf > 1.5:
-        interp = f"strong evidence for difference (log₁₀BF={log10_bf:.1f})"
+        interp = f"strong evidence for difference (log10BF={log10_bf:.1f})"
     elif log10_bf > 0.5:
-        interp = f"moderate evidence for difference (log₁₀BF={log10_bf:.1f})"
+        interp = f"moderate evidence for difference (log10BF={log10_bf:.1f})"
     elif log10_bf < -0.5:
-        interp = f"evidence for equivalence (log₁₀BF={log10_bf:.1f})"
+        interp = f"evidence for equivalence (log10BF={log10_bf:.1f})"
     else:
-        interp = f"ambiguous (log₁₀BF={log10_bf:.1f})"
+        interp = f"ambiguous (log10BF={log10_bf:.1f})"
 
     return {"log10_bf": log10_bf, "t": t, "interpretation": interp}
 
@@ -248,14 +248,44 @@ def y_randomization_test(
     y = np.asarray(y, dtype=np.float64)
     rng = np.random.default_rng(random_state)
 
-    pipe = make_pipeline(
-        StandardScaler(with_mean=False),
-        RidgeCV(alphas=np.logspace(-3, 4, 30), cv=n_splits),
-    )
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
+    def _make_pipe(alpha: float):
+        return make_pipeline(
+            StandardScaler(with_mean=False),
+            Ridge(alpha=float(alpha), fit_intercept=True, solver="sag", max_iter=8000, tol=1e-4, random_state=random_state),
+        )
+
+    def _select_alpha(X_fit: np.ndarray, y_fit: np.ndarray) -> float:
+        alphas = np.logspace(-3, 4, 30)
+        inner_kf = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+        best_alpha = float(alphas[0])
+        best_r2 = -np.inf
+
+        for alpha in alphas:
+            fold_pred = np.zeros_like(y_fit, dtype=np.float64)
+            for inner_train, inner_test in inner_kf.split(X_fit):
+                model = _make_pipe(float(alpha))
+                model.fit(X_fit[inner_train], y_fit[inner_train])
+                fold_pred[inner_test] = model.predict(X_fit[inner_test])
+            score = float(r2_score(y_fit, fold_pred))
+            if score > best_r2:
+                best_r2 = score
+                best_alpha = float(alpha)
+
+        return best_alpha
+
+    def _cross_val_predict_selected_alpha(X_fit: np.ndarray, y_fit: np.ndarray) -> np.ndarray:
+        alpha = _select_alpha(X_fit, y_fit)
+        y_pred = np.zeros_like(y_fit, dtype=np.float64)
+        for train_idx, test_idx in kf.split(X_fit):
+            model = _make_pipe(alpha)
+            model.fit(X_fit[train_idx], y_fit[train_idx])
+            y_pred[test_idx] = model.predict(X_fit[test_idx])
+        return y_pred
+
     # Observed performance
-    y_cv_obs = cross_val_predict(pipe, X, y, cv=kf)
+    y_cv_obs = _cross_val_predict_selected_alpha(X, y)
     obs_r2 = float(r2_score(y, y_cv_obs))
     obs_ccc = lin_ccc(y, y_cv_obs)
 
@@ -264,7 +294,7 @@ def y_randomization_test(
     perm_ccc_vals: list[float] = []
     for _ in range(n_permutations):
         y_perm = rng.permutation(y)
-        y_cv_perm = cross_val_predict(pipe, X, y_perm, cv=kf)
+        y_cv_perm = _cross_val_predict_selected_alpha(X, y_perm)
         perm_r2.append(float(r2_score(y_perm, y_cv_perm)))
         perm_ccc_vals.append(lin_ccc(y_perm, y_cv_perm))
 

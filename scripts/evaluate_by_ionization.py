@@ -269,7 +269,7 @@ def build_markdown_report(df: pd.DataFrame, summary: pd.DataFrame) -> str:
         for ion_class in ["acid", "neutral", "basic"]:
             lines.append(f"### {dataset} {endpoint} {ion_class}")
             lines.append("")
-            for model in ["kawow", "smarts", "smarts_mixed", "mqg"]:
+            for model in ["kawow", "smarts", "smarts_mixed", "mqg", "pfasgroups", "pfasgroups_mixed", "pfasgroups_naef", "pfasgroups_naef_mixed"]:
                 pred_col = f"pred_{model}_{endpoint}"
                 if pred_col not in df.columns:
                     continue
@@ -319,7 +319,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    models = ["kawow", "smarts", "smarts_mixed", "mqg"]
+    models = [
+        "kawow",
+        "smarts",
+        "smarts_mixed",
+        "mqg",
+        "naef_crippen_mqg",
+        "pfasgroups",
+        "pfasgroups_mixed",
+        "pfasgroups_naef",
+        "pfasgroups_naef_mixed",
+    ]
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -374,14 +384,25 @@ def main() -> None:
                 lut = pred_dedup.set_index(key)["logKoa_smarts"]
                 df.loc[dataset_mask, f"pred_{model}_logKoa"] = sub[key].map(lut).to_numpy()
 
-    # Live compute only for the ridge/Crippen model (kawow).
-    preds_kawow = run_models(df["smiles"].tolist(), models=["kawow"], fmt="smiles")
-    for i, row_pred in enumerate(preds_kawow):
+    # Live compute for models that are not fully covered by precomputed files.
+    live_models = [
+        "kawow",
+        "naef_crippen_mqg",
+        "pfasgroups",
+        "pfasgroups_mixed",
+        "pfasgroups_naef",
+        "pfasgroups_naef_mixed",
+    ]
+    preds_live = run_models(df["smiles"].tolist(), models=live_models, fmt="smiles")
+    for i, row_pred in enumerate(preds_live):
         model_dict = row_pred.get("models", {}) if isinstance(row_pred, dict) else {}
-        pred = model_dict.get("kawow", {}) if isinstance(model_dict, dict) else {}
-        if pred.get("ok"):
-            df.at[i, "pred_kawow_logKow"] = pred.get("logKow", np.nan)
-            df.at[i, "pred_kawow_logKoa"] = pred.get("logKoa", np.nan)
+        if not isinstance(model_dict, dict):
+            continue
+        for model_name in live_models:
+            pred = model_dict.get(model_name, {})
+            if isinstance(pred, dict) and pred.get("ok"):
+                df.at[i, f"pred_{model_name}_logKow"] = pred.get("logKow", np.nan)
+                df.at[i, f"pred_{model_name}_logKoa"] = pred.get("logKoa", np.nan)
 
     summary = pd.concat(
         [
