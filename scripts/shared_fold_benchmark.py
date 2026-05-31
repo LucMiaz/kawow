@@ -18,6 +18,7 @@ from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from scipy.stats import spearmanr
+from xgboost import XGBRegressor
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
@@ -322,6 +323,36 @@ def _fit_predict_ensemble(X_train: np.ndarray, y_train: np.ndarray, X_test: np.n
     return model.predict(X_test)
 
 
+def _fit_predict_xgb(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
+    """XGBoost regressor with early stopping on a held-out validation split."""
+    scaler = StandardScaler(with_mean=False)
+    X_tr_s = scaler.fit_transform(X_train)
+    X_te_s = scaler.transform(X_test)
+
+    # 20% of training data used for early stopping
+    idx_fit, idx_val = train_test_split(
+        np.arange(len(y_train)), test_size=0.2, random_state=42, shuffle=True
+    )
+    model = XGBRegressor(
+        n_estimators=1000,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=42,
+        n_jobs=-1,
+        verbosity=0,
+        early_stopping_rounds=50,
+        eval_metric="rmse",
+    )
+    model.fit(
+        X_tr_s[idx_fit], y_train[idx_fit],
+        eval_set=[(X_tr_s[idx_val], y_train[idx_val])],
+        verbose=False,
+    )
+    return model.predict(X_te_s)
+
+
 def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, threshold: float) -> dict[str, float]:
     r2 = float(r2_score(y_true, y_pred))
     rmse_val = float(math.sqrt(mean_squared_error(y_true, y_pred)))
@@ -351,6 +382,7 @@ def _benchmark_endpoint(
     X_pg_mixed = np.hstack([data.X_pfasgroups, data.X_kawow])
     X_pg_naef = np.hstack([data.X_pfasgroups, data.X_naef])
     X_pg_naef_mixed = np.hstack([data.X_pfasgroups, data.X_naef, data.X_kawow])
+    X_pg_naef_mqg = np.hstack([data.X_pfasgroups, data.X_naef, data.X_kawow, data.X_mqg])
     preds = {
         "kawow": np.full(len(data.y), np.nan, dtype=np.float64),
         "smarts": data.pred_smarts.copy(),
@@ -361,6 +393,9 @@ def _benchmark_endpoint(
         "pfasgroups_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
         "pfasgroups_naef": np.full(len(data.y), np.nan, dtype=np.float64),
         "pfasgroups_naef_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
+        "xgb_pfasgroups": np.full(len(data.y), np.nan, dtype=np.float64),
+        "xgb_pfasgroups_naef_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
+        "xgb_pfasgroups_naef_mqg": np.full(len(data.y), np.nan, dtype=np.float64),
     }
 
     # Store per-fold X matrices for y-randomisation (only models with X)
@@ -373,6 +408,9 @@ def _benchmark_endpoint(
         "pfasgroups_mixed": X_pg_mixed,
         "pfasgroups_naef": X_pg_naef,
         "pfasgroups_naef_mixed": X_pg_naef_mixed,
+        "xgb_pfasgroups": data.X_pfasgroups,
+        "xgb_pfasgroups_naef_mixed": X_pg_naef_mixed,
+        "xgb_pfasgroups_naef_mqg": X_pg_naef_mqg,
     }
 
     for train_idx, test_idx in outer_kf.split(data.y):
@@ -384,6 +422,9 @@ def _benchmark_endpoint(
         preds["pfasgroups_mixed"][test_idx] = _fit_predict_ensemble(X_pg_mixed[train_idx], data.y[train_idx], X_pg_mixed[test_idx])
         preds["pfasgroups_naef"][test_idx] = _fit_predict_ensemble(X_pg_naef[train_idx], data.y[train_idx], X_pg_naef[test_idx])
         preds["pfasgroups_naef_mixed"][test_idx] = _fit_predict_ensemble(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
+        preds["xgb_pfasgroups"][test_idx] = _fit_predict_xgb(data.X_pfasgroups[train_idx], data.y[train_idx], data.X_pfasgroups[test_idx])
+        preds["xgb_pfasgroups_naef_mixed"][test_idx] = _fit_predict_xgb(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
+        preds["xgb_pfasgroups_naef_mqg"][test_idx] = _fit_predict_xgb(X_pg_naef_mqg[train_idx], data.y[train_idx], X_pg_naef_mqg[test_idx])
 
     # Per-model metrics
     rows: list[dict[str, float | str | int]] = []

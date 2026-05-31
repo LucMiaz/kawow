@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.5 (2026-05-28)
+## 0.1.6 (2026-05-28)
 - Added support for more variants of PFASGroups models
 - Updated benchmark, including y-randomization
 
@@ -9,8 +9,7 @@
 - Added `PFASGroupsPartitionCalculator` — Ridge regression on 77-dim PFASGroups halogenated-group descriptor (`pfasgroups`) and on PFASGroups + Crippen concatenated features (`pfasgroups_mixed`)
 - Added `scripts/fit_pfasgroups_model.py` to train and save pfasgroups models from SDF files
 - Updated `run_models()` to support `"pfasgroups"` and `"pfasgroups_mixed"` model keys
-- Updated `docs/features.md` with PFASGroups feature vector documentation (Parts A–D)
-- Bumped `__version__` to `0.1.4`
+- Updated `docs/features.md` with PFASGroups feature vector documentation (Parts A-D)
 
 ## 0.1.3 (2026-05-15)
 
