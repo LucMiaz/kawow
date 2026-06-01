@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kawow"
-version = "0.1.6"
+version = "0.2.0"
 description = "Models for partitioning coefficients (logKow, logKoa and logKaw) from molecular structure, including model based on [Naef & Acree 2024](https://doi.org/10.3390/liquids4010011)"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "matplotlib", "pandas"]
+ml  = ["xgboost>=2.0", "keras>=3.0"]
 lint = ["pylint>=3.0"]
 docs = [
     "sphinx>=7.0",

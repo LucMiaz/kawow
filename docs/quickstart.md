@@ -53,8 +53,8 @@ Each model result dictionary includes:
 | Key | Condition |
 |-----|-----------|
 | `in_gap1` | `3.5 < logKow < 5.0` |
-| `in_gap2` | `logKow > 4.5` and `logKoa < 6` |
-| `in_gap3` | `4.5 < logKow < 5.0` and `logKoa < 6` |
+| `in_gap2` | `logKow > 4.9` and `logKoa < 6` |
+| `in_gap3` | `4.9 < logKow < 5.0` and `logKoa < 6` |
 | `gap_labels` | list of applicable gap strings, e.g. `["Gap 1", "Gap 3"]` |
 
 ---

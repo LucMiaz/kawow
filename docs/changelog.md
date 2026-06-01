@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0 (2026-06-01)
+- Add random forest, boosting and neural net models based on PFASGroups, Crippen and Naef&Acree embeddings
+- Verified gaps and fixed typos
+
 ## 0.1.6 (2026-05-28)
 - Added support for more variants of PFASGroups models
 - Updated benchmark, including y-randomization

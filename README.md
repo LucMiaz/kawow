@@ -33,8 +33,8 @@ Group-additivity prediction of **log*K*ow**, **log*K*oa**, and **log*K*aw** from
 | Gap | Condition |
 |-----|-----------|
 | Gap 1 | `3.5 < logKow < 5.0` (between vM and vB on *K*ow axis) |
-| Gap 2 | `logKow > 4.5` **and** `logKoa < 6` (non-M, non-B) |
-| Gap 3 | `4.5 < logKow < 5.0` **and** `logKoa < 6` (intersection of Gap 1 and Gap 2) |
+| Gap 2 | `logKow > 4.9` **and** `logKoa < 6` (non-M, non-B) |
+| Gap 3 | `4.9 < logKow < 5.0` **and** `logKoa < 6` (intersection of Gap 1 and Gap 2) |
 
 ---
 
@@ -64,8 +64,11 @@ log*K*ow and log*K*oa R² values are from 5-fold cross-validation on the shared 
 | `smarts` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
 | `smarts_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | Naef & Acree SMARTS contributions + Crippen atom-type Ridge hybrid | 0.938 (cv) | 0.943 (cv) | **0.912** |
 | `mqg` | `MQGPartitionCalculator` | Ridge regression ensemble: Naef group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) | **0.913** |
-| `pfasgroups` | `PFASGroupsPartitionCalculator` | Ridge regression on 77-dim PFASGroups halogenated-group descriptor | — (cv) | — (cv) | — |
-| `pfasgroups_mixed` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + Crippen atom-type (77-dim) concatenated features | — (cv) | — (cv) | — |
+| `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + Naef group counts | 0.939 (cv) | 0.937 (cv) | — |
+| `pfasgroups_naef_mixed` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + Naef group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_mixed_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
+| `pfasgroups_naef_mixed_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_mixed_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` with keras installed | — | — | — |
 
 Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
 

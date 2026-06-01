@@ -323,6 +323,54 @@ def _fit_predict_ensemble(X_train: np.ndarray, y_train: np.ndarray, X_test: np.n
     return model.predict(X_test)
 
 
+def _fit_predict_rf(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
+    """Random-forest regressor in a StandardScaler pipeline."""
+    pipe = make_pipeline(
+        StandardScaler(with_mean=False),
+        RandomForestRegressor(
+            n_estimators=300,
+            max_features=0.33,
+            random_state=42,
+            n_jobs=-1,
+        ),
+    )
+    pipe.fit(X_train, y_train)
+    return pipe.predict(X_test)
+
+
+def _fit_predict_nn(
+    X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray,
+) -> np.ndarray:
+    """Keras MLP [256,128,64] with BatchNorm + Dropout, early stopping."""
+    try:
+        import keras
+    except ImportError:
+        return np.full(len(X_test), np.nan, dtype=np.float64)
+
+    scaler = StandardScaler(with_mean=False)
+    X_tr_s = scaler.fit_transform(X_train)
+    X_te_s = scaler.transform(X_test)
+    idx_fit, idx_val = train_test_split(
+        np.arange(len(y_train)), test_size=0.15, random_state=42
+    )
+    inputs = keras.Input(shape=(X_tr_s.shape[1],))
+    x = inputs
+    for units in (256, 128, 64):
+        x = keras.layers.Dense(units, activation="relu", kernel_initializer="he_normal")(x)
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.Dropout(0.2)(x)
+    outputs = keras.layers.Dense(1, activation="linear")(x)
+    model = keras.Model(inputs, outputs)
+    model.compile(optimizer=keras.optimizers.Adam(1e-3), loss="mse")
+    cb = keras.callbacks.EarlyStopping(monitor="val_loss", patience=30, restore_best_weights=True)
+    model.fit(
+        X_tr_s[idx_fit], y_train[idx_fit],
+        validation_data=(X_tr_s[idx_val], y_train[idx_val]),
+        epochs=500, batch_size=64, callbacks=[cb], verbose=0,
+    )
+    return model.predict(X_te_s, verbose=0).ravel()
+
+
 def _fit_predict_xgb(X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray) -> np.ndarray:
     """XGBoost regressor with early stopping on a held-out validation split."""
     scaler = StandardScaler(with_mean=False)
@@ -394,8 +442,10 @@ def _benchmark_endpoint(
         "pfasgroups_naef": np.full(len(data.y), np.nan, dtype=np.float64),
         "pfasgroups_naef_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
         "xgb_pfasgroups": np.full(len(data.y), np.nan, dtype=np.float64),
-        "xgb_pfasgroups_naef_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
+        "pfasgroups_naef_mixed_xgb": np.full(len(data.y), np.nan, dtype=np.float64),
         "xgb_pfasgroups_naef_mqg": np.full(len(data.y), np.nan, dtype=np.float64),
+        "pfasgroups_naef_mixed_rf": np.full(len(data.y), np.nan, dtype=np.float64),
+        "pfasgroups_naef_mixed_nn": np.full(len(data.y), np.nan, dtype=np.float64),
     }
 
     # Store per-fold X matrices for y-randomisation (only models with X)
@@ -409,8 +459,10 @@ def _benchmark_endpoint(
         "pfasgroups_naef": X_pg_naef,
         "pfasgroups_naef_mixed": X_pg_naef_mixed,
         "xgb_pfasgroups": data.X_pfasgroups,
-        "xgb_pfasgroups_naef_mixed": X_pg_naef_mixed,
+        "pfasgroups_naef_mixed_xgb": X_pg_naef_mixed,
         "xgb_pfasgroups_naef_mqg": X_pg_naef_mqg,
+        "pfasgroups_naef_mixed_rf": X_pg_naef_mixed,
+        "pfasgroups_naef_mixed_nn": X_pg_naef_mixed,
     }
 
     for train_idx, test_idx in outer_kf.split(data.y):
@@ -423,8 +475,10 @@ def _benchmark_endpoint(
         preds["pfasgroups_naef"][test_idx] = _fit_predict_ensemble(X_pg_naef[train_idx], data.y[train_idx], X_pg_naef[test_idx])
         preds["pfasgroups_naef_mixed"][test_idx] = _fit_predict_ensemble(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
         preds["xgb_pfasgroups"][test_idx] = _fit_predict_xgb(data.X_pfasgroups[train_idx], data.y[train_idx], data.X_pfasgroups[test_idx])
-        preds["xgb_pfasgroups_naef_mixed"][test_idx] = _fit_predict_xgb(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
+        preds["pfasgroups_naef_mixed_xgb"][test_idx] = _fit_predict_xgb(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
         preds["xgb_pfasgroups_naef_mqg"][test_idx] = _fit_predict_xgb(X_pg_naef_mqg[train_idx], data.y[train_idx], X_pg_naef_mqg[test_idx])
+        preds["pfasgroups_naef_mixed_rf"][test_idx] = _fit_predict_rf(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
+        preds["pfasgroups_naef_mixed_nn"][test_idx] = _fit_predict_nn(X_pg_naef_mixed[train_idx], data.y[train_idx], X_pg_naef_mixed[test_idx])
 
     # Per-model metrics
     rows: list[dict[str, float | str | int]] = []

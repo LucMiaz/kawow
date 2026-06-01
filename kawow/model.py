@@ -78,6 +78,9 @@ _AVAILABLE_MODEL_NAMES = (
     "pfasgroups_mixed",
     "pfasgroups_naef",
     "pfasgroups_naef_mixed",
+    "pfasgroups_naef_mixed_rf",
+    "pfasgroups_naef_mixed_xgb",
+    "pfasgroups_naef_mixed_nn",
 )
 
 
@@ -113,11 +116,12 @@ def _classify_partition(
     # ── Regulatory gaps ────────────────────────────────────────────────────
     # Gap 1 (non vM, non vB): 3.5 < logKow < 5.0
     in_gap1 = bool((logkow > 3.5) and (logkow < vb_logkow_threshold))
-    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.5 AND logKoa < 6
-    in_gap2 = bool((logkow > m_logkoc_threshold) and (logkoa < b_logkoa_threshold))
-    # Gap 3 (non M, non B, incl. aquatic): 4.5 < logKow < 5.0 AND logKoa < 6
+    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.9 AND logKoa < 6
+    m_logkow_threshold = m_logkoc_threshold + logkoc_from_kow_offset
+    in_gap2 = bool((logkow > m_logkow_threshold) and (logkoa < b_logkoa_threshold))
+    # Gap 3 (non M, non B, incl. aquatic): 4.9 < logKow < 5.0 AND logKoa < 6
     in_gap3 = bool(
-        (logkow > m_logkoc_threshold)
+        (logkow > m_logkow_threshold)
         and (logkow < vb_logkow_threshold)
         and (logkoa < b_logkoa_threshold)
     )
@@ -152,9 +156,9 @@ def _classify_partition(
             "vM_logKoc_est_lte": float(vm_logkoc_threshold),
             "gap1_logKow_gt": 3.5,
             "gap1_logKow_lt": float(vb_logkow_threshold),
-            "gap2_logKow_gt": float(m_logkoc_threshold),
+            "gap2_logKow_gt": float(m_logkow_threshold),
             "gap2_logKoa_lt": float(b_logkoa_threshold),
-            "gap3_logKow_gt": float(m_logkoc_threshold),
+            "gap3_logKow_gt": float(m_logkow_threshold),
             "gap3_logKow_lt": float(vb_logkow_threshold),
             "gap3_logKoa_lt": float(b_logkoa_threshold),
         },
@@ -263,6 +267,12 @@ def run_models(
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef")
             elif model_name == "pfasgroups_naef_mixed":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_mixed")
+            elif model_name == "pfasgroups_naef_mixed_rf":
+                calculators[model_name] = PFASGroupsRFPartitionCalculator()
+            elif model_name == "pfasgroups_naef_mixed_xgb":
+                calculators[model_name] = PFASGroupsXGBPartitionCalculator()
+            elif model_name == "pfasgroups_naef_mixed_nn":
+                calculators[model_name] = PFASGroupsNNPartitionCalculator()
         except Exception as exc:
             init_errors[model_name] = str(exc)
 
@@ -1210,4 +1220,282 @@ class PFASGroupsPartitionCalculator:
             "model": self._variant,
             "logKow": {k: v for k, v in self._kow.items() if k != "model"},
             "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }
+
+
+# ── Helper shared by the three advanced PFASGroups calculators ────────────────
+
+def _make_pfasgroups_naef_mixed_features(
+    mol,
+    compute_pfasgroups_features,
+    naef_patterns_kow,
+    naef_patterns_koa,
+) -> "tuple[np.ndarray | None, np.ndarray | None]":
+    """Return (x_kow, x_koa) using the pfasgroups+naef+crippen feature set."""
+    x_pg = compute_pfasgroups_features(mol)
+    if x_pg is None:
+        return None, None
+    x_cr = compute_features(mol)
+    if x_cr is None:
+        return None, None
+    x_cr = x_cr.astype(np.float32)
+    x_naef_kow = _compute_naef_group_counts(mol, naef_patterns_kow)
+    x_naef_koa = _compute_naef_group_counts(mol, naef_patterns_koa)
+    return (
+        np.hstack([x_pg, x_naef_kow, x_cr]).astype(np.float32),
+        np.hstack([x_pg, x_naef_koa, x_cr]).astype(np.float32),
+    )
+
+
+# ── Random-Forest calculator ──────────────────────────────────────────────────
+
+class PFASGroupsRFPartitionCalculator:
+    """Predict logKow/logKoa/logKaw via a Random Forest on PFASGroups+Naef+Crippen features.
+
+    Uses a RandomForestRegressor (300 trees, ``max_features=0.33``) inside a
+    ``StandardScaler`` pipeline, fitted with 5-fold cross-validation on the
+    S01/S02 Naef & Acree (2024) benchmark datasets.  Feature extraction is
+    identical to the ``pfasgroups_naef_mixed`` Ridge model:
+    PFASGroups (77-dim) + Naef group counts + Crippen atom types (91-dim).
+
+    No additional dependencies beyond ``scikit-learn`` (already required by
+    the base package) are needed.
+
+    Usage
+    -----
+    >>> calc = PFASGroupsRFPartitionCalculator()
+    >>> calc.predict("FC(F)(F)C(F)(F)F")
+    {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
+    """
+
+    def __init__(self) -> None:
+        from .pfasgroups_features import compute_pfasgroups_features as _cpf
+        self._cpf = _cpf
+        self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
+        self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
+        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_rf_model.pkl")
+        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_rf_model.pkl")
+
+    def _feature_vector(self, mol):
+        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+
+    def _predict_mol(self, mol) -> dict:
+        x_kow, x_koa = self._feature_vector(mol)
+        if x_kow is None:
+            return {"status": "error", "error": "feature computation failed"}
+        logKow = float(self._kow["model"].predict(x_kow.reshape(1, -1))[0])
+        logKoa = float(self._koa["model"].predict(x_koa.reshape(1, -1))[0])
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKow - logKoa, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        return results[0] if len(results) == 1 else results
+
+    def predict_batch(self, smiles_list: "list[str]") -> "list[dict]":
+        if Chem is None:
+            raise ImportError("RDKit is required.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": "pfasgroups_naef_mixed_rf",
+            "logKow": {k: v for k, v in self._kow.items() if k != "model"},
+            "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }
+
+
+# ── XGBoost calculator ────────────────────────────────────────────────────────
+
+class PFASGroupsXGBPartitionCalculator:
+    """Predict logKow/logKoa/logKaw via XGBoost on PFASGroups+Naef+Crippen features.
+
+    Uses an ``XGBRegressor`` (gradient-boosted trees) with early stopping on a
+    held-out validation split, fitted with 5-fold cross-validation on the
+    S01/S02 Naef & Acree (2024) datasets.  The same PFASGroups+Naef+Crippen
+    feature matrix as ``pfasgroups_naef_mixed`` is used.
+
+    Requires ``xgboost>=2.0``.  Install with ``pip install kawow[ml]``.
+
+    Usage
+    -----
+    >>> calc = PFASGroupsXGBPartitionCalculator()
+    >>> calc.predict("FC(F)(F)C(F)(F)F")
+    {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
+    """
+
+    def __init__(self) -> None:
+        try:
+            import xgboost  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "xgboost is required for PFASGroupsXGBPartitionCalculator. "
+                "Install with: pip install kawow[ml]"
+            ) from exc
+        from .pfasgroups_features import compute_pfasgroups_features as _cpf
+        self._cpf = _cpf
+        self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
+        self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
+        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_xgb_model.pkl")
+        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_xgb_model.pkl")
+
+    def _feature_vector(self, mol):
+        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+
+    def _predict_mol(self, mol) -> dict:
+        x_kow, x_koa = self._feature_vector(mol)
+        if x_kow is None:
+            return {"status": "error", "error": "feature computation failed"}
+        logKow = float(self._kow["model"].predict(x_kow.reshape(1, -1))[0])
+        logKoa = float(self._koa["model"].predict(x_koa.reshape(1, -1))[0])
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKow - logKoa, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        return results[0] if len(results) == 1 else results
+
+    def predict_batch(self, smiles_list: "list[str]") -> "list[dict]":
+        if Chem is None:
+            raise ImportError("RDKit is required.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": "pfasgroups_naef_mixed_xgb",
+            "logKow": {k: v for k, v in self._kow.items() if k != "model"},
+            "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
+        }
+
+
+# ── Keras neural-network calculator ──────────────────────────────────────────
+
+class PFASGroupsNNPartitionCalculator:
+    """Predict logKow/logKoa/logKaw via a Keras MLP on PFASGroups+Naef+Crippen features.
+
+    Uses a three-hidden-layer MLP ([256, 128, 64] units, BatchNormalization +
+    Dropout(0.2) after each layer, linear output) trained with Adam and early
+    stopping, fitted with 5-fold cross-validation on the S01/S02 Naef & Acree
+    (2024) datasets.  The same PFASGroups+Naef+Crippen feature matrix as
+    ``pfasgroups_naef_mixed`` is used.
+
+    Requires ``keras>=3.0``.  Install with ``pip install kawow[ml]``.
+
+    Usage
+    -----
+    >>> calc = PFASGroupsNNPartitionCalculator()
+    >>> calc.predict("FC(F)(F)C(F)(F)F")
+    {'logKow': ..., 'logKoa': ..., 'logKaw': ..., 'status': 'ok'}
+    """
+
+    def __init__(self) -> None:
+        try:
+            import keras as _keras
+            self._keras = _keras
+        except ImportError as exc:
+            raise ImportError(
+                "keras is required for PFASGroupsNNPartitionCalculator. "
+                "Install with: pip install kawow[ml]"
+            ) from exc
+        from .pfasgroups_features import compute_pfasgroups_features as _cpf
+        self._cpf = _cpf
+        self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
+        self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
+        self._kow_meta = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_meta.pkl")
+        self._koa_meta = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_meta.pkl")
+        self._kow_nn = _keras.models.load_model(
+            DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_model.keras"
+        )
+        self._koa_nn = _keras.models.load_model(
+            DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_model.keras"
+        )
+
+    def _feature_vector(self, mol):
+        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+
+    def _predict_mol(self, mol) -> dict:
+        x_kow, x_koa = self._feature_vector(mol)
+        if x_kow is None:
+            return {"status": "error", "error": "feature computation failed"}
+        x_kow_s = self._kow_meta["scaler"].transform(x_kow.reshape(1, -1))
+        x_koa_s = self._koa_meta["scaler"].transform(x_koa.reshape(1, -1))
+        logKow = float(self._kow_nn.predict(x_kow_s, verbose=0)[0, 0])
+        logKoa = float(self._koa_nn.predict(x_koa_s, verbose=0)[0, 0])
+        return {
+            "logKow": round(logKow, 3),
+            "logKoa": round(logKoa, 3),
+            "logKaw": round(logKow - logKoa, 3),
+            "status": "ok",
+        }
+
+    def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
+        from .io import parse_input
+        pairs = parse_input(inp, fmt=fmt)
+        results = []
+        for mol, name in pairs:
+            r = self._predict_mol(mol)
+            r["name"] = name
+            results.append(r)
+        return results[0] if len(results) == 1 else results
+
+    def predict_batch(self, smiles_list: "list[str]") -> "list[dict]":
+        if Chem is None:
+            raise ImportError("RDKit is required.")
+        results = []
+        for smi in smiles_list:
+            mol = Chem.MolFromSmiles(smi.strip())
+            if mol is None:
+                results.append({"smiles": smi, "status": "error", "error": "invalid SMILES"})
+                continue
+            r = self._predict_mol(mol)
+            r["smiles"] = smi
+            results.append(r)
+        return results
+
+    @property
+    def model_info(self) -> dict:
+        return {
+            "model": "pfasgroups_naef_mixed_nn",
+            "logKow": {k: v for k, v in self._kow_meta.items() if k != "scaler"},
+            "logKoa": {k: v for k, v in self._koa_meta.items() if k != "scaler"},
         }
