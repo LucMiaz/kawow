@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kawow"
+version = "1.0.0"
+description = "Models for partitioning coefficients (logKow, logKoa and logKaw) from molecular structure, including model based on [Naef & Acree 2024](https://doi.org/10.3390/liquids4010011)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "CC-BY-4.0" }
+authors = [{ name = "Luc T. Miaz" }]
+
+keywords = [
+    "cheminformatics",
+    "logKow",
+    "logKoa",
+    "logKaw",
+    "partition coefficient",
+    "QSPR",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scikit-learn>=1.3",
+    "rdkit>=2022.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "matplotlib", "pandas"]
+ml  = ["xgboost>=2.0", "keras>=3.0"]
+lint = ["pylint>=3.0"]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "myst-parser>=2.0",
+    "sphinx-autodoc-typehints>=1.24",
+    "numpydoc>=1.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.pylint.main]
+ignore-paths = ["scripts", "tests", "docs"]
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring  (module docstrings already present)
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "W0212",  # protected-access (used intentionally in model internals)
+    "C0103",  # invalid-name (domain names: X, logKow, logKoa, logKaw, is_B, etc.)
+    "C0301",  # line-too-long (handled by max-line-length)
+    "C0303",  # trailing-whitespace
+    "C0305",  # trailing-newlines
+    "C0412",  # ungrouped-imports
+    "C0415",  # import-outside-toplevel (intentional lazy imports)
+    "E1101",  # no-member (rdkit C extensions — false positives)
+    "I1101",  # c-extension-no-member (rdkit C extensions)
+    "R0911",  # too-many-return-statements
+    "R0912",  # too-many-branches
+    "R0917",  # too-many-positional-arguments
+    "W0621",  # redefined-outer-name
+    "W0718",  # broad-exception-caught (defensive catches)
+]
+min-similarity-lines = 8
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kawow*"]
+
+[tool.setuptools.package-data]
+kawow = ["data/*.json", "data/*.csv", "data/*.txt"]
+
+[project.urls]
+Repository = "https://github.com/LucMiaz/kawow"

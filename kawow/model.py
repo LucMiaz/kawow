@@ -61,9 +61,9 @@ _MODEL_MQG_LOGKOA = DATA_DIR / "logkoa_mqg_model.pkl"
 
 # Backward-compat aliases: old key → new canonical key
 _KEY_ALIASES: dict[str, str] = {
-    "kawow":        "crippen",
-    "smarts":       "naefacree",
-    "smarts_mixed": "naefacree_mixed",
+    "crippen":        "crippen",
+    "naef":       "naefacree",
+    "naef_crippen": "naefacree_mixed",
 }
 
 
@@ -90,18 +90,18 @@ _MODEL_FILES_MQG = {
 
 _AVAILABLE_MODEL_NAMES = (
     "crippen",
-    "naefacree",
-    "naefacree_mixed",
+    "naef",
+    "naef_crippen",
     "naef_mqg",
     "crippen_mqg",
     "mqg",
     "pfasgroups",
-    "pfasgroups_mixed",
+    "pfasgroups_crippen",
     "pfasgroups_naef",
-    "pfasgroups_naef_mixed",
-    "pfasgroups_naef_mixed_rf",
-    "pfasgroups_naef_mixed_xgb",
-    "pfasgroups_naef_mixed_nn",
+    "pfasgroups_naef_crippen",
+    "pfasgroups_naef_crippen_rf",
+    "pfasgroups_naef_crippen_xgb",
+    "pfasgroups_naef_crippen_nn",
 )
 
 
@@ -242,20 +242,18 @@ def run_models(
         Any input accepted by :func:`kawow.io.parse_input`.
     models:
         Sequence of model identifiers. Supported values are:
-        ``crippen``, ``naefacree``, ``naefacree_mixed``,
+        ``crippen``, ``naef``, ``naef_crippen``,
         ``naef_mqg``, ``crippen_mqg``, ``mqg``,
-        ``pfasgroups``, ``pfasgroups_mixed``,
-        ``pfasgroups_naef``, ``pfasgroups_naef_mixed``.
+        ``pfasgroups``, ``pfasgroups_naef_crippen``,
+        ``pfasgroups_naef``, ``pfasgroups_naef_crippen``.
         If omitted, all available models are used.
-        Old keys ``kawow``, ``smarts``, ``smarts_mixed`` are still accepted
-        but deprecated.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
     """
     from .io import parse_input
     from .smarts_model import (
         NaefAcreePartitionCalculator,
-        NaefAcreeCrippenMixedPartitionCalculator,
+        NaefAcreeCrippenPartitionCalculator,
     )
 
     selected_raw = [m.lower() for m in (models or list(_AVAILABLE_MODEL_NAMES))]
@@ -283,10 +281,10 @@ def run_models(
         try:
             if model_name == "crippen":
                 calculators[model_name] = PartitionCalculator()
-            elif model_name == "naefacree":
+            elif model_name == "naef":
                 calculators[model_name] = NaefAcreePartitionCalculator()
-            elif model_name == "naefacree_mixed":
-                calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
+            elif model_name == "naef_crippen":
+                calculators[model_name] = NaefAcreeCrippenPartitionCalculator()
             elif model_name == "naef_mqg":
                 calculators[model_name] = EnsemblePartitionCalculator("naef_mqg")
             elif model_name == "crippen_mqg":
@@ -295,17 +293,17 @@ def run_models(
                 calculators[model_name] = MQGPartitionCalculator()
             elif model_name == "pfasgroups":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups")
-            elif model_name == "pfasgroups_mixed":
-                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_mixed")
+            elif model_name == "pfasgroups_naef_crippen":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_crippen")
             elif model_name == "pfasgroups_naef":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef")
-            elif model_name == "pfasgroups_naef_mixed":
-                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_mixed")
-            elif model_name == "pfasgroups_naef_mixed_rf":
+            elif model_name == "pfasgroups_naef_crippen":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_crippen")
+            elif model_name == "pfasgroups_naef_crippen_rf":
                 calculators[model_name] = PFASGroupsRFPartitionCalculator()
-            elif model_name == "pfasgroups_naef_mixed_xgb":
+            elif model_name == "pfasgroups_naef_crippen_xgb":
                 calculators[model_name] = PFASGroupsXGBPartitionCalculator()
-            elif model_name == "pfasgroups_naef_mixed_nn":
+            elif model_name == "pfasgroups_naef_crippen_nn":
                 calculators[model_name] = PFASGroupsNNPartitionCalculator()
         except Exception as exc:
             init_errors[model_name] = str(exc)
@@ -1137,10 +1135,10 @@ class PFASGroupsPartitionCalculator:
     ----------
     variant : str
         ``"pfasgroups"`` — Ridge on 77-dim PFASGroups feature vector.
-        ``"pfasgroups_mixed"`` — Ridge on PFASGroups (77) + Crippen (77)
+        ``"pfasgroups_crippen"`` — Ridge on PFASGroups (77) + Crippen (77)
         concatenated features (154-dim).
         ``"pfasgroups_naef"`` — Ridge on PFASGroups (77) + Naef group counts.
-        ``"pfasgroups_naef_mixed"`` — Ridge on PFASGroups + Naef group counts + Crippen.
+        ``"pfasgroups_naef_crippen"`` — Ridge on PFASGroups + Naef group counts + Crippen.
 
     Usage
     -----
@@ -1151,9 +1149,9 @@ class PFASGroupsPartitionCalculator:
 
     _VALID_VARIANTS = (
         "pfasgroups",
-        "pfasgroups_mixed",
+        "pfasgroups_crippen",
         "pfasgroups_naef",
-        "pfasgroups_naef_mixed",
+        "pfasgroups_naef_crippen",
     )
 
     def __init__(self, variant: str = "pfasgroups") -> None:
@@ -1164,8 +1162,8 @@ class PFASGroupsPartitionCalculator:
         from .pfasgroups_features import compute_pfasgroups_features as _cpf
         self._compute_pfasgroups_features = _cpf
         self._variant = variant
-        self._use_crippen = variant in {"pfasgroups_mixed", "pfasgroups_naef_mixed"}
-        self._use_naef = variant in {"pfasgroups_naef", "pfasgroups_naef_mixed"}
+        self._use_crippen = variant in {"pfasgroups_crippen", "pfasgroups_naef_crippen"}
+        self._use_naef = variant in {"pfasgroups_naef", "pfasgroups_naef_crippen"}
 
         self._naef_patterns_kow = None
         self._naef_patterns_koa = None
@@ -1261,7 +1259,7 @@ class PFASGroupsPartitionCalculator:
 
 # ── Helper shared by the three advanced PFASGroups calculators ────────────────
 
-def _make_pfasgroups_naef_mixed_features(
+def _make_pfasgroups_naef_crippen_features(
     mol,
     compute_pfasgroups_features,
     naef_patterns_kow,
@@ -1291,7 +1289,7 @@ class PFASGroupsRFPartitionCalculator:
     Uses a RandomForestRegressor (300 trees, ``max_features=0.33``) inside a
     ``StandardScaler`` pipeline, fitted with 5-fold cross-validation on the
     S01/S02 Naef & Acree (2024) benchmark datasets.  Feature extraction is
-    identical to the ``pfasgroups_naef_mixed`` Ridge model:
+    identical to the ``pfasgroups_naef_crippen`` Ridge model:
     PFASGroups (77-dim) + Naef group counts + Crippen atom types (91-dim).
 
     No additional dependencies beyond ``scikit-learn`` (already required by
@@ -1309,11 +1307,11 @@ class PFASGroupsRFPartitionCalculator:
         self._cpf = _cpf
         self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
         self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
-        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_rf_model.pkl")
-        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_rf_model.pkl")
+        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_crippen_rf_model.pkl")
+        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_crippen_rf_model.pkl")
 
     def _feature_vector(self, mol):
-        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+        return _make_pfasgroups_naef_crippen_features(mol, self._cpf, self._naef_kow, self._naef_koa)
 
     def _predict_mol(self, mol) -> dict:
         x_kow, x_koa = self._feature_vector(mol)
@@ -1355,7 +1353,7 @@ class PFASGroupsRFPartitionCalculator:
     @property
     def model_info(self) -> dict:
         return {
-            "model": "pfasgroups_naef_mixed_rf",
+            "model": "pfasgroups_naef_crippen_rf",
             "logKow": {k: v for k, v in self._kow.items() if k != "model"},
             "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
         }
@@ -1369,7 +1367,7 @@ class PFASGroupsXGBPartitionCalculator:
     Uses an ``XGBRegressor`` (gradient-boosted trees) with early stopping on a
     held-out validation split, fitted with 5-fold cross-validation on the
     S01/S02 Naef & Acree (2024) datasets.  The same PFASGroups+Naef+Crippen
-    feature matrix as ``pfasgroups_naef_mixed`` is used.
+    feature matrix as ``pfasgroups_naef_crippen`` is used.
 
     Requires ``xgboost>=2.0``.  Install with ``pip install kawow[ml]``.
 
@@ -1392,11 +1390,11 @@ class PFASGroupsXGBPartitionCalculator:
         self._cpf = _cpf
         self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
         self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
-        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_xgb_model.pkl")
-        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_xgb_model.pkl")
+        self._kow = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_crippen_xgb_model.pkl")
+        self._koa = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_crippen_xgb_model.pkl")
 
     def _feature_vector(self, mol):
-        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+        return _make_pfasgroups_naef_crippen_features(mol, self._cpf, self._naef_kow, self._naef_koa)
 
     def _predict_mol(self, mol) -> dict:
         x_kow, x_koa = self._feature_vector(mol)
@@ -1438,7 +1436,7 @@ class PFASGroupsXGBPartitionCalculator:
     @property
     def model_info(self) -> dict:
         return {
-            "model": "pfasgroups_naef_mixed_xgb",
+            "model": "pfasgroups_naef_crippen_xgb",
             "logKow": {k: v for k, v in self._kow.items() if k != "model"},
             "logKoa": {k: v for k, v in self._koa.items() if k != "model"},
         }
@@ -1453,7 +1451,7 @@ class PFASGroupsNNPartitionCalculator:
     Dropout(0.2) after each layer, linear output) trained with Adam and early
     stopping, fitted with 5-fold cross-validation on the S01/S02 Naef & Acree
     (2024) datasets.  The same PFASGroups+Naef+Crippen feature matrix as
-    ``pfasgroups_naef_mixed`` is used.
+    ``pfasgroups_naef_crippen`` is used.
 
     Requires ``keras>=3.0``.  Install with ``pip install kawow[ml]``.
 
@@ -1477,17 +1475,17 @@ class PFASGroupsNNPartitionCalculator:
         self._cpf = _cpf
         self._naef_kow = _compile_naef_patterns(DATA_DIR / "naef2024_logkow_parameters.csv")
         self._naef_koa = _compile_naef_patterns(DATA_DIR / "naef2024_logkoa_parameters.csv")
-        self._kow_meta = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_meta.pkl")
-        self._koa_meta = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_meta.pkl")
+        self._kow_meta = _load_pickle(DATA_DIR / "logkow_pfasgroups_naef_crippen_nn_meta.pkl")
+        self._koa_meta = _load_pickle(DATA_DIR / "logkoa_pfasgroups_naef_crippen_nn_meta.pkl")
         self._kow_nn = _keras.models.load_model(
-            DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_model.keras"
+            DATA_DIR / "logkow_pfasgroups_naef_crippen_nn_model.keras"
         )
         self._koa_nn = _keras.models.load_model(
-            DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_model.keras"
+            DATA_DIR / "logkoa_pfasgroups_naef_crippen_nn_model.keras"
         )
 
     def _feature_vector(self, mol):
-        return _make_pfasgroups_naef_mixed_features(mol, self._cpf, self._naef_kow, self._naef_koa)
+        return _make_pfasgroups_naef_crippen_features(mol, self._cpf, self._naef_kow, self._naef_koa)
 
     def _predict_mol(self, mol) -> dict:
         x_kow, x_koa = self._feature_vector(mol)
@@ -1531,7 +1529,7 @@ class PFASGroupsNNPartitionCalculator:
     @property
     def model_info(self) -> dict:
         return {
-            "model": "pfasgroups_naef_mixed_nn",
+            "model": "pfasgroups_naef_crippen_nn",
             "logKow": {k: v for k, v in self._kow_meta.items() if k != "scaler"},
             "logKoa": {k: v for k, v in self._koa_meta.items() if k != "scaler"},
         }

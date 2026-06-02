@@ -61,14 +61,14 @@ log*K*ow and log*K*oa R² values are from 5-fold cross-validation on the shared 
 | Model key | Class | Approach | log*K*ow R² | log*K*oa R² | log*K*aw R² |
 |-----------|-------|----------|-------------|-------------|-------------|
 | `crippen` | `PartitionCalculator` | Ridge regression on Crippen atom-type counts + NaefAcree special-group features | 0.898 (cv) | 0.937 (cv) | — |
-| `naefacree` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
-| `naefacree_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | NaefAcree SMARTS contributions + Crippen atom-type Ridge | 0.938 (cv) | 0.943 (cv) | **0.912** |
+| `naef` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
+| `naef_crippen` | `NaefAcreeCrippenPartitionCalculator` | NaefAcree SMARTS contributions + Crippen atom-type Ridge | 0.938 (cv) | 0.943 (cv) | **0.912** |
 | `mqg` | `MQGPartitionCalculator` | Ridge regression: NaefAcree group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) | **0.913** |
 | `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts | 0.939 (cv) | 0.937 (cv) | — |
-| `pfasgroups_naef_mixed` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_mixed_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
-| `pfasgroups_naef_mixed_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_mixed_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` with keras installed | 0.946 (cv) | 0.940 (cv) | — |
+| `pfasgroups_naef_crippen` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_crippen_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
+| `pfasgroups_naef_crippen_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_crippen_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` with keras installed | 0.946 (cv) | 0.940 (cv) | — |
 
 Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
 
@@ -77,7 +77,7 @@ import kawow
 
 results = kawow.run_models(
     ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
-    models=["crippen", "naefacree_mixed"],
+    models=["crippen", "naef_crippen"],
 )
 for row in results:
     print(row["smiles"], row["models"]["crippen"]["logKow"],
@@ -178,7 +178,7 @@ All values are from 5-fold cross-validation on the shared S01∩S02 intersection
 
 Binary classification F1 scores on the shared S01∩S02 benchmark (1 083-1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
 
-| Label | Condition | n (+) | `crippen` | `naefacree` | `naefacree_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
+| Label | Condition | n (+) | `crippen` | `naef` | `naef_crippen_` | `naef_mqg` | `crippen_mqg` | `mqg` |
 |-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
 | G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
 | G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
@@ -299,8 +299,8 @@ Access these via `model_info` (see code example above) or via the benchmark scri
 ### Y-randomization (permutation test)
 
 Run via `shared_fold_benchmark.py --y-randomization` (default: 1 000 permutations, Ridge 5-fold CV).
-Trainable models are tested (kawow, smarts_mixed, mqg, naef_crippen_mqg, pfasgroups,
-pfasgroups_mixed, pfasgroups_naef, pfasgroups_naef_mixed); the pure SMARTS lookup is excluded.
+Trainable models are tested (crippen, naef_crippen, mqg, naef_crippen_mqg, pfasgroups,
+pfasgroups_crippen, pfasgroups_naef, pfasgroups_naef_crippen); the pure SMARTS lookup is excluded.
 Results are saved to `tests/out/y_randomization.csv`.
 
 A non-significant p-value (fraction of permuted R² ≥ observed R²) confirms the model captures genuine structure-property relationships rather than overfitting to label order.

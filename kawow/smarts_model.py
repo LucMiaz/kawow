@@ -468,8 +468,8 @@ class NaefAcreePartitionCalculator:
         return coeffs[list(coeffs.keys())[0]]
 
 
-class NaefAcreeCrippenMixedPartitionCalculator(NaefAcreePartitionCalculator):
-    """NaefAcree-compatible mixed model using fitted Naef + Crippen parameter tables."""
+class NaefAcreeCrippenPartitionCalculator(NaefAcreePartitionCalculator):
+    """NaefAcree-compatible model using fitted Naef + Crippen parameter tables."""
 
     def __init__(
         self,
@@ -488,5 +488,5 @@ class NaefAcreeCrippenMixedPartitionCalculator(NaefAcreePartitionCalculator):
 
 __all__ = [
     "NaefAcreePartitionCalculator",
-    "NaefAcreeCrippenMixedPartitionCalculator",
+    "NaefAcreeCrippenPartitionCalculator",
 ]

@@ -22,7 +22,7 @@ DOI: 10.3390/liquids4010011
 """
 
 from .model import PartitionCalculator, MQGPartitionCalculator, EnsemblePartitionCalculator, PFASGroupsPartitionCalculator, PFASGroupsRFPartitionCalculator, PFASGroupsXGBPartitionCalculator, PFASGroupsNNPartitionCalculator, fit, fit_mqg, run_models
-from .smarts_model import NaefAcreePartitionCalculator, NaefAcreeCrippenMixedPartitionCalculator
+from .smarts_model import NaefAcreePartitionCalculator, NaefAcreeCrippenPartitionCalculator
 from .io import parse_input
 from .features import compute_features
 from .atom_types import FEATURE_LABELS, N_FEATURES
@@ -37,7 +37,7 @@ __all__ = [
     "PFASGroupsXGBPartitionCalculator",
     "PFASGroupsNNPartitionCalculator",
     "NaefAcreePartitionCalculator",
-    "NaefAcreeCrippenMixedPartitionCalculator",
+    "NaefAcreeCrippenPartitionCalculator",
     "fit",
     "fit_mqg",
     "run_models",

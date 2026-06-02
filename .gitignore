@@ -181,3 +181,9 @@ cython_debug/
 .cursorindexingignore
 
 .history/
+
+# Large model files (>10 MB) — not tracked in git
+logkow_mqg_model_pure_backup.pkl
+logkoa_mqg_model_pure_backup.pkl
+kawow/data/logkow_pfasgroups_naef_crippen_rf_model.pkl
+kawow/data/logkoa_pfasgroups_naef_crippen_rf_model.pkl

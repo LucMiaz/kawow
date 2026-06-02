@@ -451,6 +451,7 @@ def _benchmark_endpoint(
     # Store per-fold X matrices for y-randomisation (only models with X)
     X_by_model = {
         "crippen": data.X_kawow,
+        "naefacree": data.X_naef,
         "naefacree_mixed": data.X_mixed,
         "mqg": data.X_mqg,
         "naef_crippen_mqg": data.X_winner,
