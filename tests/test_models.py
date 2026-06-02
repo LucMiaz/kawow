@@ -304,6 +304,7 @@ class TestPFASGroupsXGB:
 
     @pytest.fixture(scope="class")
     def calc(self):
+        pytest.importorskip("xgboost", reason="xgboost not installed — skipping XGB model tests (pip install kawow[ml])")
         from kawow import PFASGroupsXGBPartitionCalculator
         return PFASGroupsXGBPartitionCalculator()
 
