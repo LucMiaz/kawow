@@ -1,6 +1,6 @@
 # Changelog
-## current
-- renaming of models for clarity
+## 1.0.0 (2026-06-02)
+- renaming of models for clarity (breaking change)
 
 ## 0.2.0 (2026-06-01)
 - Add random forest, boosting and neural net models based on PFASGroups, Crippen and Naef&Acree embeddings

@@ -66,8 +66,8 @@ for smarts, _ in CRIPPEN_PATTS["C18"]:
 
 ## PFASGroups features (77-dimensional)
 
-The `pfasgroups`, `pfasgroups_mixed`, `pfasgroups_naef`, and
-`pfasgroups_naef_mixed` models use a PFASGroups 77-dimensional
+The `pfasgroups`, `pfasgroups_crippen`, `pfasgroups_naef`, and
+`pfasgroups_naef_crippen` models use a PFASGroups 77-dimensional
 feature vector computed by `kawow.pfasgroups_features.compute_pfasgroups_features`.
 It is designed to capture the halogenated structural character relevant for
 partitioning in fluorinated and chlorinated compounds.
@@ -100,10 +100,10 @@ if vec is not None:
 Model feature composition:
 
 - `pfasgroups`: PFASGroups only (77).
-- `pfasgroups_mixed`: PFASGroups (77) + Crippen atom types (77) = 154.
+- `pfasgroups_crippen`: PFASGroups (77) + Crippen atom types (77) = 154.
 - `pfasgroups_naef`: PFASGroups (77) + Naef group-count feature vector.
-- `pfasgroups_naef_mixed`: PFASGroups (77) + Naef + Crippen atom types (77).
+- `pfasgroups_naef_crippen`: PFASGroups (77) + Naef + Crippen atom types (77).
 
 This extends PFASGroups descriptors with the same Naef/Crippen feature blocks
-used by the `smarts_mixed` and `naef_crippen_mqg` families.
+used by the `naef_crippen` and `naef_crippen_mqg` families.
 

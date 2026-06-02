@@ -11,24 +11,24 @@ import kawow
 
 results = kawow.run_models(
     ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
-    models=["crippen", "naefacree_mixed"],   # omit to run all four
+    models=["crippen", "naef_crippen"],   # omit to run all four
 )
 
 for row in results:
     kow = row["models"]["crippen"]
-    mix = row["models"]["naefacree_mixed"]
+    mix = row["models"]["naef_crippen"]
     print(
         f"{row['smiles']:35s}  "
         f"crippen logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
-        f"  |  naefacree_mixed logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
+        f"  |  naef_crippen logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
         f"  gaps={kow.get('gap_labels', [])}"
     )
 ```
 
-Available model keys: `"crippen"`, `"naefacree"`, `"naefacree_mixed"`, `"mqg"`,
-`"pfasgroups"`, `"pfasgroups_mixed"`, `"pfasgroups_naef"`, `"pfasgroups_naef_mixed"`,
-`"pfasgroups_naef_mixed_rf"`, `"pfasgroups_naef_mixed_xgb"`, `"pfasgroups_naef_mixed_nn"`.
-Deprecated aliases `"kawow"`, `"smarts"`, `"smarts_mixed"` still work but emit a warning.
+Available model keys: `"crippen"`, `"naef"`, `"naef_crippen"`, `"mqg"`,
+`"pfasgroups"`, `"pfasgroups_cripppen"`, `"pfasgroups_naef"`, `"pfasgroups_naef_cripppen"`,
+`"pfasgroups_naef_cripppen_rf"`, `"pfasgroups_naef_cripppen_xgb"`, `"pfasgroups_naef_cripppen_nn"`.
+
 
 ### Flagging criteria
 
@@ -190,7 +190,7 @@ kawow evaluates the same binary flags as `run_models()` against experimental ben
 
 ### F1 scores
 
-| Label | Condition | n (+) | `kawow` | `smarts` | `smarts_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
+| Label | Condition | n (+) | `crippen` | `naef` | `naef_crippen` | `naef_mqg` | `crippen_mqg` | `mqg` |
 |-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
 | G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
 | G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
@@ -202,7 +202,7 @@ kawow evaluates the same binary flags as `run_models()` against experimental ben
 
 n (+): number of true-positive molecules in the benchmark. — = model makes 0 positive predictions (precision undefined). `naef_mqg` and `crippen_mqg` use `EnsemblePartitionCalculator`.
 
-### Precision and recall — `smarts_mixed` (best overall)
+### Precision and recall — `naef_crippen` (best overall)
 
 | Label | Precision | Recall | F1 |
 |-------|----------:|-------:|---:|
