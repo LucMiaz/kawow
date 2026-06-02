@@ -77,7 +77,7 @@ where = ["."]
 include = ["kawow*"]
 
 [tool.setuptools.package-data]
-kawow = ["data/*.json", "data/*.csv", "data/*.txt"]
+kawow = ["data/*.json", "data/*.pkl", "data/*.csv", "data/*.txt"]
 
 [project.urls]
 Repository = "https://github.com/LucMiaz/kawow"
