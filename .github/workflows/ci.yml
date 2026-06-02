@@ -28,6 +28,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install rdkit
+          pip install PFASGroups
           pip install -e ".[dev,lint]"
 
       - name: Run pytest
