@@ -56,19 +56,19 @@ pip install -e ".[dev]"
 
 ## Models at a glance
 
-log*K*ow and log*K*oa R² values are from 5-fold cross-validation on the shared S01∩S02 benchmark (n = 3 319 for log*K*ow; n = 1 956 for log*K*oa), except `smarts` which applies fixed Naef & Acree (2024) parameters directly (no re-fitting). log*K*aw R² is from external validation on the full S03 dataset (Naef & Acree 2024; n = 2 130–2 150; S03 was not used for training).
+log*K*ow and log*K*oa R² values are from 5-fold cross-validation on the shared S01∩S02 benchmark (n = 3 319 for log*K*ow; n = 1 956 for log*K*oa), except `NaefAcree` which applies fixed Naef & Acree (2024) parameters directly (no re-fitting). log*K*aw R² is from external validation on the full S03 dataset (Naef & Acree 2024; n = 2 130-2 150; S03 was not used for training).
 
 | Model key | Class | Approach | log*K*ow R² | log*K*oa R² | log*K*aw R² |
 |-----------|-------|----------|-------------|-------------|-------------|
-| `kawow` | `PartitionCalculator` | Ridge regression on Crippen atom-type counts + Naef special-group features | 0.898 (cv) | 0.937 (cv) | — |
-| `smarts` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
-| `smarts_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | Naef & Acree SMARTS contributions + Crippen atom-type Ridge hybrid | 0.938 (cv) | 0.943 (cv) | **0.912** |
-| `mqg` | `MQGPartitionCalculator` | Ridge regression ensemble: Naef group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) | **0.913** |
-| `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + Naef group counts | 0.939 (cv) | 0.937 (cv) | — |
-| `pfasgroups_naef_mixed` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + Naef group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_mixed_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
-| `pfasgroups_naef_mixed_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_mixed_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + Naef + Crippen features; requires `pip install kawow[ml]` with keras installed | — | — | — |
+| `crippen` | `PartitionCalculator` | Ridge regression on Crippen atom-type counts + NaefAcree special-group features | 0.898 (cv) | 0.937 (cv) | — |
+| `naefacree` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
+| `naefacree_mixed` | `NaefAcreeCrippenMixedPartitionCalculator` | NaefAcree SMARTS contributions + Crippen atom-type Ridge | 0.938 (cv) | 0.943 (cv) | **0.912** |
+| `mqg` | `MQGPartitionCalculator` | Ridge regression: NaefAcree group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) | **0.913** |
+| `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts | 0.939 (cv) | 0.937 (cv) | — |
+| `pfasgroups_naef_mixed` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_mixed_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
+| `pfasgroups_naef_mixed_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
+| `pfasgroups_naef_mixed_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` with keras installed | 0.946 (cv) | 0.940 (cv) | — |
 
 Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
 
@@ -77,11 +77,11 @@ import kawow
 
 results = kawow.run_models(
     ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
-    models=["kawow", "smarts_mixed"],
+    models=["crippen", "naefacree_mixed"],
 )
 for row in results:
-    print(row["smiles"], row["models"]["kawow"]["logKow"],
-          row["models"]["kawow"]["b_class"])
+    print(row["smiles"], row["models"]["crippen"]["logKow"],
+          row["models"]["crippen"]["b_class"])
 ```
 
 Each element of the returned list is a `dict` with:
@@ -152,27 +152,33 @@ calc = kawow.PartitionCalculator()   # reload after fitting
 
 ### Performance (Naef & Acree benchmark datasets)
 
-All values are from 5-fold cross-validation on the shared S01∩S02 intersection, except `smarts` (no fitting; evaluated on full S01/S02/S03) and the log*K*aw rows (external validation on full S03 — S03 was never used for training).
+All values are from 5-fold cross-validation on the shared S01∩S02 intersection, except NaefAcree (no fitting; evaluated on full S01/S02/S03) and the log*K*aw rows (external validation on full S03 — S03 was never used for training).
 
 | Model | Property | n | R² | RMSE | Note |
 |-------|----------|---|-----|------|------|
-| `kawow` (Crippen Ridge) | log*K*ow | 3 319 | 0.898 | 0.664 | 5-fold CV |
-| `kawow` (Crippen Ridge) | log*K*oa | 1 956 | 0.937 | 0.740 | 5-fold CV |
-| `smarts` (Naef & Acree) | log*K*ow | 3 344 | 0.857 | 0.786 | external (S01 full) |
-| `smarts` (Naef & Acree) | log*K*oa | 1 983 | 0.785 | 1.387 | external (S02 full) |
-| `smarts` (Naef & Acree) | log*K*aw | 2 150 | 0.654 | 1.758 | external (S03 full) |
-| `smarts_mixed` (hybrid) | log*K*ow | 3 319 | **0.938** | 0.518 | 5-fold CV |
-| `smarts_mixed` (hybrid) | log*K*oa | 1 956 | **0.943** | 0.702 | 5-fold CV |
-| `smarts_mixed` (hybrid) | log*K*aw | 2 150 | **0.912** | 0.886 | external (S03 full) |
-| `mqg` (ensemble) | log*K*ow | 3 319 | **0.940** | 0.510 | 5-fold CV |
-| `mqg` (ensemble) | log*K*oa | 1 956 | **0.942** | 0.705 | 5-fold CV |
-| `mqg` (ensemble) | log*K*aw | 2 130 | **0.913** | 0.882 | external (S03 full) |
+| Crippen | log*K*ow | 3 319 | 0.898 | 0.664 | 5-fold CV |
+| Crippen | log*K*oa | 1 956 | 0.937 | 0.740 | 5-fold CV |
+| NaefAcree | log*K*ow | 3 344 | 0.857 | 0.786 | external (S01 full) |
+| NaefAcree | log*K*oa | 1 983 | 0.785 | 1.387 | external (S02 full) |
+| NaefAcree | log*K*aw | 2 150 | 0.654 | 1.758 | external (S03 full) |
+| NaefAcree + Crippen | log*K*ow | 3 319 | **0.938** | 0.518 | 5-fold CV |
+| NaefAcree + Crippen | log*K*oa | 1 956 | **0.943** | 0.702 | 5-fold CV |
+| NaefAcree + Crippen | log*K*aw | 2 150 | **0.912** | 0.886 | external (S03 full) |
+| MQG + NaefAcree + Crippen | log*K*ow | 3 319 | **0.940** | 0.510 | 5-fold CV |
+| MQG + NaefAcree + Crippen | log*K*oa | 1 956 | **0.942** | 0.705 | 5-fold CV |
+| MQG + NaefAcree + Crippen | log*K*aw | 2 130 | **0.913** | 0.882 | external (S03 full) |
+| PFASGroups + NaefAcree + Crippen (RF) | log*K*ow | 3 319 | 0.909 | 0.630 | 5-fold CV |
+| PFASGroups + NaefAcree + Crippen (RF) | log*K*oa | 1 956 | 0.926 | 0.800 | 5-fold CV |
+| PFASGroups + NaefAcree + Crippen (XGB) | log*K*ow | 3 319 | **0.936** | 0.527 | 5-fold CV |
+| PFASGroups + NaefAcree + Crippen (XGB) | log*K*oa | 1 956 | **0.941** | 0.716 | 5-fold CV |
+| PFASGroups + NaefAcree + Crippen (NN) | log*K*ow | 3 319 | **0.946** | 0.485 | 5-fold CV |
+| PFASGroups + NaefAcree + Crippen (NN) | log*K*oa | 1 956 | **0.940** | 0.719 | 5-fold CV |
 
 ### Regulatory classification performance (F1 scores)-
 
-Binary classification F1 scores on the shared S01∩S02 benchmark (1 083–1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
+Binary classification F1 scores on the shared S01∩S02 benchmark (1 083-1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
 
-| Label | Condition | n (+) | `kawow` | `smarts` | `smarts_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
+| Label | Condition | n (+) | `crippen` | `naefacree` | `naefacree_mixed` | `naef_mqg` | `crippen_mqg` | `mqg` |
 |-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
 | G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
 | G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
@@ -212,7 +218,7 @@ for mol, coeffs in calc_batch.results.items():
 
 ### Performance (Naef & Acree tabulated parameters, evaluated on benchmark sets)
 
-The `smarts` model applies the published Naef & Acree (2024) parameters without any re-fitting. Performance is evaluated on the full individual datasets and on the shared S01∩S02 benchmark intersection.
+The NaefAcree model applies the published Naef & Acree (2024) parameters without any re-fitting. Performance is evaluated on the full individual datasets and on the shared S01∩S02 benchmark intersection.
 
 | Dataset | Property | n | R² | RMSE |
 |---------|----------|---|-----|------|
@@ -243,7 +249,7 @@ Each molecule is represented by counts of SMARTS atom-type groups from the Naef 
 - **Extra −COOH count** — number of carboxylic acid groups beyond the first
 - **Endocyclic C−C single bond count**
 
-The `PartitionCalculator` additionally uses 72 Crippen atom-type features (from RDKit's `Crippen.txt`) on top of the 5 Naef special groups.
+The `PartitionCalculator` additionally uses 72 Crippen atom-type features (from RDKit's `Crippen.txt`) on top of the 5 NaefAcree special groups.
 
 ### Extended metrics
 
@@ -261,24 +267,30 @@ In addition to R² and RMSE, kawow reports the following metrics for each traine
 
 | Model | Property | n | CCC | NRMSE (σ) | NRMSE (range) | log₁₀(BF₁₀) |
 |-------|----------|---|-----|-----------|---------------|-------------|
-| `kawow` | logKow | 3319 | 0.946 | 0.319 | 0.039 | >10^300 |
-| `kawow` | logKoa | 1956 | 0.968 | 0.252 | 0.043 | >10^300 |
-| `smarts` | logKow | 3319 | 0.925 | 0.378 | 0.046 | >10^300 |
-| `smarts` | logKoa | 1956 | 0.894 | 0.472 | 0.082 | >10^300 |
-| `smarts_mixed` | logKow | 3319 | 0.968 | 0.249 | 0.030 | >10^300 |
-| `smarts_mixed` | logKoa | 1956 | 0.971 | 0.239 | 0.041 | >10^300 |
-| `mqg` | logKow | 3319 | 0.483 | 0.817 | 0.099 | >10^300 |
-| `mqg` | logKoa | 1956 | 0.783 | 0.594 | 0.102 | >10^300 |
-| `naef_crippen_mqg` | logKow | 3319 | 0.969 | 0.245 | 0.030 | >10^300 |
-| `naef_crippen_mqg` | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
-| `pfasgroups` | logKow | 3319 | 0.880 | 0.464 | 0.056 | >10^300 |
-| `pfasgroups` | logKoa | 1956 | 0.945 | 0.322 | 0.056 | >10^300 |
-| `pfasgroups_mixed` | logKow | 3319 | 0.954 | 0.298 | 0.036 | >10^300 |
-| `pfasgroups_mixed` | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
-| `pfasgroups_naef` | logKow | 3319 | 0.969 | 0.246 | 0.030 | >10^300 |
-| `pfasgroups_naef` | logKoa | 1956 | 0.968 | 0.247 | 0.043 | >10^300 |
-| `pfasgroups_naef_mixed` | logKow | 3319 | 0.970 | 0.240 | 0.029 | >10^300 |
-| `pfasgroups_naef_mixed` | logKoa | 1956 | 0.970 | 0.239 | 0.041 | >10^300 |
+| Crippen | logKow | 3319 | 0.946 | 0.319 | 0.039 | >10^300 |
+| Crippen | logKoa | 1956 | 0.968 | 0.252 | 0.043 | >10^300 |
+| NaefAcree | logKow | 3319 | 0.925 | 0.378 | 0.046 | >10^300 |
+| NaefAcree | logKoa | 1956 | 0.894 | 0.472 | 0.082 | >10^300 |
+| NaefAcree + Crippen | logKow | 3319 | 0.968 | 0.249 | 0.030 | >10^300 |
+| NaefAcree + Crippen | logKoa | 1956 | 0.971 | 0.239 | 0.041 | >10^300 |
+| MQG alone | logKow | 3319 | 0.483 | 0.817 | 0.099 | >10^300 |
+| MQG alone | logKoa | 1956 | 0.783 | 0.594 | 0.102 | >10^300 |
+| MQG + NaefAcree + Crippen | logKow | 3319 | 0.969 | 0.245 | 0.030 | >10^300 |
+| MQG + NaefAcree + Crippen | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
+| PFASGroups | logKow | 3319 | 0.880 | 0.464 | 0.056 | >10^300 |
+| PFASGroups | logKoa | 1956 | 0.945 | 0.322 | 0.056 | >10^300 |
+| PFASGroups + Crippen | logKow | 3319 | 0.954 | 0.298 | 0.036 | >10^300 |
+| PFASGroups + Crippen | logKoa | 1956 | 0.970 | 0.242 | 0.042 | >10^300 |
+| PFASGroups + NaefAcree | logKow | 3319 | 0.969 | 0.246 | 0.030 | >10^300 |
+| PFASGroups + NaefAcree | logKoa | 1956 | 0.968 | 0.247 | 0.043 | >10^300 |
+| PFASGroups + NaefAcree + Crippen | logKow | 3319 | 0.970 | 0.240 | 0.029 | >10^300 |
+| PFASGroups + NaefAcree + Crippen | logKoa | 1956 | 0.970 | 0.239 | 0.041 | >10^300 |
+| PFASGroups + NaefAcree + Crippen (RF) | logKow | 3319 | 0.953 | 0.303 | — | >10^300 |
+| PFASGroups + NaefAcree + Crippen (RF) | logKoa | 1956 | 0.962 | 0.273 | — | >10^300 |
+| PFASGroups + NaefAcree + Crippen (XGB) | logKow | 3319 | 0.968 | 0.254 | — | >10^300 |
+| PFASGroups + NaefAcree + Crippen (XGB) | logKoa | 1956 | 0.970 | 0.244 | — | >10^300 |
+| PFASGroups + NaefAcree + Crippen (NN) | logKow | 3319 | — | — | — | >10^300 |
+| PFASGroups + NaefAcree + Crippen (NN) | logKoa | 1956 | — | — | — | >10^300 |
 
 <!-- METRICS_DATA_END -->
 
@@ -291,7 +303,7 @@ Trainable models are tested (kawow, smarts_mixed, mqg, naef_crippen_mqg, pfasgro
 pfasgroups_mixed, pfasgroups_naef, pfasgroups_naef_mixed); the pure SMARTS lookup is excluded.
 Results are saved to `tests/out/y_randomization.csv`.
 
-A non-significant p-value (fraction of permuted R² ≥ observed R²) confirms the model captures genuine structure–property relationships rather than overfitting to label order.
+A non-significant p-value (fraction of permuted R² ≥ observed R²) confirms the model captures genuine structure-property relationships rather than overfitting to label order.
 Use the CSV directly for publication numbers, because observed values depend on run settings
 (e.g., max-samples/permutation count) while permutation baselines remain near zero.
 
@@ -300,15 +312,15 @@ Use the CSV directly for publication numbers, because observed values depend on 
 
 ## Reference
 
-Naef, Rudolf, and William E. Acree, Jr. 2024. "Calculation of the Three Partition Coefficients logPow, logKoa and logKaw of Organic Molecules at Standard Conditions at Once by Means of a Generally Applicable Group-Additivity Method." *Liquids* 4, no. 1: 231–260. [10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
+Naef, Rudolf, and William E. Acree, Jr. 2024. "Calculation of the Three Partition Coefficients logPow, logKoa and logKaw of Organic Molecules at Standard Conditions at Once by Means of a Generally Applicable Group-Additivity Method." *Liquids* 4, no. 1: 231-260. [10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
 
 Arp, H.P.H. and Hale, S.E. 2023. "From Measured Partition Coefficients to the Prediction of Environmental Fate." Supplementary data: `vg2c00024_si_001` (ACS).
 
-Lin, L.I.-K. 1989. "A Concordance Correlation Coefficient to Evaluate Reproducibility." *Biometrics* 45: 255–268. [10.2307/2532051](https://doi.org/10.2307/2532051)
+Lin, L.I.-K. 1989. "A Concordance Correlation Coefficient to Evaluate Reproducibility." *Biometrics* 45: 255-268. [10.2307/2532051](https://doi.org/10.2307/2532051)
 
-Ly, A., Verhagen, A.J., and Wagenmakers, E.-J. 2015. "Harold Jeffreys's Default Bayes Factor for Testing Point Null Hypotheses from a Continuous Prior Distribution." *Journal of Mathematical Psychology* 28: 71–84. [10.1016/j.jmp.2015.06.004](https://doi.org/10.1016/j.jmp.2015.06.004)
+Ly, A., Verhagen, A.J., and Wagenmakers, E.-J. 2015. "Harold Jeffreys's Default Bayes Factor for Testing Point Null Hypotheses from a Continuous Prior Distribution." *Journal of Mathematical Psychology* 28: 71-84. [10.1016/j.jmp.2015.06.004](https://doi.org/10.1016/j.jmp.2015.06.004)
 
-Steiger, J.H. 1980. "Tests for Comparing Elements of a Correlation Matrix." *Psychological Bulletin* 87: 245–251. [10.1037/0033-2909.87.2.245](https://doi.org/10.1037/0033-2909.87.2.245)
+Steiger, J.H. 1980. "Tests for Comparing Elements of a Correlation Matrix." *Psychological Bulletin* 87: 245-251. [10.1037/0033-2909.87.2.245](https://doi.org/10.1037/0033-2909.87.2.245)
 
 Chicco, D., Tötsch, N., and Jurman, G. 2021. "The Matthews Correlation Coefficient (MCC) Is More Reliable Than Balanced Accuracy." *BioData Mining* 14: 13. [10.1186/s13040-021-00244-z](https://doi.org/10.1186/s13040-021-00244-z)
 

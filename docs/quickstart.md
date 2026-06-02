@@ -11,22 +11,24 @@ import kawow
 
 results = kawow.run_models(
     ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
-    models=["kawow", "smarts_mixed"],   # omit to run all four
+    models=["crippen", "naefacree_mixed"],   # omit to run all four
 )
 
 for row in results:
-    kow = row["models"]["kawow"]
-    mix = row["models"]["smarts_mixed"]
+    kow = row["models"]["crippen"]
+    mix = row["models"]["naefacree_mixed"]
     print(
         f"{row['smiles']:35s}  "
-        f"kawow logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
-        f"  |  mixed logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
+        f"crippen logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
+        f"  |  naefacree_mixed logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
         f"  gaps={kow.get('gap_labels', [])}"
     )
 ```
 
-Available model keys: `"kawow"`, `"smarts"`, `"smarts_mixed"`, `"mqg"`,
-`"pfasgroups"`, `"pfasgroups_mixed"`.
+Available model keys: `"crippen"`, `"naefacree"`, `"naefacree_mixed"`, `"mqg"`,
+`"pfasgroups"`, `"pfasgroups_mixed"`, `"pfasgroups_naef"`, `"pfasgroups_naef_mixed"`,
+`"pfasgroups_naef_mixed_rf"`, `"pfasgroups_naef_mixed_xgb"`, `"pfasgroups_naef_mixed_nn"`.
+Deprecated aliases `"kawow"`, `"smarts"`, `"smarts_mixed"` still work but emit a warning.
 
 ### Flagging criteria
 

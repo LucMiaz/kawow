@@ -432,9 +432,9 @@ def _benchmark_endpoint(
     X_pg_naef_mixed = np.hstack([data.X_pfasgroups, data.X_naef, data.X_kawow])
     X_pg_naef_mqg = np.hstack([data.X_pfasgroups, data.X_naef, data.X_kawow, data.X_mqg])
     preds = {
-        "kawow": np.full(len(data.y), np.nan, dtype=np.float64),
-        "smarts": data.pred_smarts.copy(),
-        "smarts_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
+        "crippen": np.full(len(data.y), np.nan, dtype=np.float64),
+        "naefacree": data.pred_smarts.copy(),
+        "naefacree_mixed": np.full(len(data.y), np.nan, dtype=np.float64),
         "mqg": np.full(len(data.y), np.nan, dtype=np.float64),
         "naef_crippen_mqg": np.full(len(data.y), np.nan, dtype=np.float64),
         "pfasgroups": np.full(len(data.y), np.nan, dtype=np.float64),
@@ -450,8 +450,8 @@ def _benchmark_endpoint(
 
     # Store per-fold X matrices for y-randomisation (only models with X)
     X_by_model = {
-        "kawow": data.X_kawow,
-        "smarts_mixed": data.X_mixed,
+        "crippen": data.X_kawow,
+        "naefacree_mixed": data.X_mixed,
         "mqg": data.X_mqg,
         "naef_crippen_mqg": data.X_winner,
         "pfasgroups": data.X_pfasgroups,
@@ -466,8 +466,8 @@ def _benchmark_endpoint(
     }
 
     for train_idx, test_idx in outer_kf.split(data.y):
-        preds["kawow"][test_idx] = _fit_predict_kawow(data.X_kawow[train_idx], data.y[train_idx], data.X_kawow[test_idx])
-        preds["smarts_mixed"][test_idx] = _fit_predict_mixed(data.X_mixed[train_idx], data.y[train_idx], data.X_mixed[test_idx])
+        preds["crippen"][test_idx] = _fit_predict_kawow(data.X_kawow[train_idx], data.y[train_idx], data.X_kawow[test_idx])
+        preds["naefacree_mixed"][test_idx] = _fit_predict_mixed(data.X_mixed[train_idx], data.y[train_idx], data.X_mixed[test_idx])
         preds["mqg"][test_idx] = _fit_predict_mqg(data.X_mqg[train_idx], data.y[train_idx], data.X_mqg[test_idx])
         preds["naef_crippen_mqg"][test_idx] = _fit_predict_ensemble(data.X_winner[train_idx], data.y[train_idx], data.X_winner[test_idx])
         preds["pfasgroups"][test_idx] = _fit_predict_ensemble(data.X_pfasgroups[train_idx], data.y[train_idx], data.X_pfasgroups[test_idx])

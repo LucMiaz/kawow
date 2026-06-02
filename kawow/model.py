@@ -5,7 +5,7 @@ Group-additivity models for prediction of logKow and logKoa.
 
 The supported model variant is:
 
-``"kawow"`` (default)
+``"crippen"`` (default)
     Ridge regression (L2 regularisation) re-fitted on the Naef & Acree (2024)
     SDF training data. Stored in ``kawow/data/logk*_model.json``.
 
@@ -59,8 +59,29 @@ _MODEL_LOGKOA     = DATA_DIR / "logkoa_model.json"
 _MODEL_MQG_LOGKOW = DATA_DIR / "logkow_mqg_model.pkl"
 _MODEL_MQG_LOGKOA = DATA_DIR / "logkoa_mqg_model.pkl"
 
+# Backward-compat aliases: old key → new canonical key
+_KEY_ALIASES: dict[str, str] = {
+    "kawow":        "crippen",
+    "smarts":       "naefacree",
+    "smarts_mixed": "naefacree_mixed",
+}
+
+
+def _normalize_model_key(key: str) -> str:
+    """Return the canonical model key, emitting a DeprecationWarning for old names."""
+    canonical = _KEY_ALIASES.get(key)
+    if canonical is not None:
+        warnings.warn(
+            f"Model key {key!r} is deprecated; use {canonical!r} instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return canonical
+    return key
+
+
 _MODEL_FILES = {
-    "kawow": (_MODEL_LOGKOW, _MODEL_LOGKOA),
+    "crippen": (_MODEL_LOGKOW, _MODEL_LOGKOA),
 }
 
 _MODEL_FILES_MQG = {
@@ -68,9 +89,9 @@ _MODEL_FILES_MQG = {
 }
 
 _AVAILABLE_MODEL_NAMES = (
-    "kawow",
-    "smarts",
-    "smarts_mixed",
+    "crippen",
+    "naefacree",
+    "naefacree_mixed",
     "naef_mqg",
     "crippen_mqg",
     "mqg",
@@ -221,11 +242,13 @@ def run_models(
         Any input accepted by :func:`kawow.io.parse_input`.
     models:
         Sequence of model identifiers. Supported values are:
-        ``kawow``, ``smarts``, ``smarts_mixed``,
+        ``crippen``, ``naefacree``, ``naefacree_mixed``,
         ``naef_mqg``, ``crippen_mqg``, ``mqg``,
         ``pfasgroups``, ``pfasgroups_mixed``,
         ``pfasgroups_naef``, ``pfasgroups_naef_mixed``.
         If omitted, all available models are used.
+        Old keys ``kawow``, ``smarts``, ``smarts_mixed`` are still accepted
+        but deprecated.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
     """
@@ -235,8 +258,19 @@ def run_models(
         NaefAcreeCrippenMixedPartitionCalculator,
     )
 
-    selected = [m.lower() for m in (models or list(_AVAILABLE_MODEL_NAMES))]
-    selected = [m for m in selected if m in _AVAILABLE_MODEL_NAMES]
+    selected_raw = [m.lower() for m in (models or list(_AVAILABLE_MODEL_NAMES))]
+    selected = []
+    for m in selected_raw:
+        canonical = _KEY_ALIASES.get(m)
+        if canonical is not None:
+            warnings.warn(
+                f"Model key {m!r} is deprecated; use {canonical!r} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            m = canonical
+        if m in _AVAILABLE_MODEL_NAMES:
+            selected.append(m)
     if not selected:
         raise ValueError(
             "No valid model selected. Supported models: "
@@ -247,11 +281,11 @@ def run_models(
     init_errors: dict[str, str] = {}
     for model_name in selected:
         try:
-            if model_name == "kawow":
+            if model_name == "crippen":
                 calculators[model_name] = PartitionCalculator()
-            elif model_name == "smarts":
+            elif model_name == "naefacree":
                 calculators[model_name] = NaefAcreePartitionCalculator()
-            elif model_name == "smarts_mixed":
+            elif model_name == "naefacree_mixed":
                 calculators[model_name] = NaefAcreeCrippenMixedPartitionCalculator()
             elif model_name == "naef_mqg":
                 calculators[model_name] = EnsemblePartitionCalculator("naef_mqg")
@@ -791,7 +825,8 @@ class PartitionCalculator:
     Parameters
     ----------
     model : str, optional
-        Must be ``'kawow'`` (default). Retained for backwards compatibility.
+        Must be ``'crippen'`` (default). ``'kawow'`` is accepted as a
+        deprecated alias.
 
     Usage
     -----
@@ -803,13 +838,14 @@ class PartitionCalculator:
     [{'smiles': ..., 'logKow': ..., ...}, ...]
     """
 
-    def __init__(self, model: str = "kawow") -> None:
-        if model != "kawow":
+    def __init__(self, model: str = "crippen") -> None:
+        resolved = _normalize_model_key(model)
+        if resolved not in ("crippen",):
             raise ValueError(
-                f"Unknown model {model!r}. Valid option: ['kawow']"
+                f"Unknown model {model!r}. Valid option: ['crippen'] (deprecated alias: 'kawow')"
             )
-        self._model_name = "kawow"
-        kow_path, koa_path = _MODEL_FILES["kawow"]
+        self._model_name = "crippen"
+        kow_path, koa_path = _MODEL_FILES["crippen"]
         self._kow = _load_json(kow_path)
         self._koa = _load_json(koa_path)
 

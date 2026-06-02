@@ -269,7 +269,7 @@ def build_markdown_report(df: pd.DataFrame, summary: pd.DataFrame) -> str:
         for ion_class in ["acid", "neutral", "basic"]:
             lines.append(f"### {dataset} {endpoint} {ion_class}")
             lines.append("")
-            for model in ["kawow", "smarts", "smarts_mixed", "mqg", "pfasgroups", "pfasgroups_mixed", "pfasgroups_naef", "pfasgroups_naef_mixed"]:
+            for model in ["crippen", "naefacree", "naefacree_mixed", "mqg", "pfasgroups", "pfasgroups_mixed", "pfasgroups_naef", "pfasgroups_naef_mixed"]:
                 pred_col = f"pred_{model}_{endpoint}"
                 if pred_col not in df.columns:
                     continue
@@ -295,8 +295,8 @@ def build_markdown_report(df: pd.DataFrame, summary: pd.DataFrame) -> str:
     lines.append("")
     lines.append("- Acid/basic labels are based on rule-matched functional groups and estimated pKa values at pH 7.")
     lines.append("- Zwitterions often remain classed as neutral when the estimated net charge is near zero.")
-    lines.append("- SMARTS mixed is consistently the strongest model across these subgrouped benchmarks.")
-    lines.append("- Plain SMARTS degrades strongly for ionizable chemistry, especially S02 basic compounds.")
+    lines.append("- NaefAcree+Crippen is consistently the strongest model across these subgrouped benchmarks.")
+    lines.append("- Plain NaefAcree degrades strongly for ionizable chemistry, especially S02 basic compounds.")
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -320,9 +320,9 @@ def main() -> None:
     args = parser.parse_args()
 
     models = [
-        "kawow",
-        "smarts",
-        "smarts_mixed",
+        "crippen",
+        "naefacree",
+        "naefacree_mixed",
         "mqg",
         "naef_crippen_mqg",
         "pfasgroups",
@@ -341,11 +341,11 @@ def main() -> None:
 
     # Fast path: use existing benchmark CSVs for smarts/mixed/mqg when available.
     precomputed_files = {
-        ("S01", "smarts"): out_dir_existing / "s01_smarts_vs_experimental.csv",
-        ("S01", "smarts_mixed"): out_dir_existing / "s01_smarts_m_vs_experimental.csv",
+        ("S01", "naefacree"): out_dir_existing / "s01_smarts_vs_experimental.csv",
+        ("S01", "naefacree_mixed"): out_dir_existing / "s01_smarts_m_vs_experimental.csv",
         ("S01", "mqg"): out_dir_existing / "s01_mqg_vs_experimental.csv",
-        ("S02", "smarts"): out_dir_existing / "s02_smarts_vs_experimental.csv",
-        ("S02", "smarts_mixed"): out_dir_existing / "s02_smarts_m_vs_experimental.csv",
+        ("S02", "naefacree"): out_dir_existing / "s02_smarts_vs_experimental.csv",
+        ("S02", "naefacree_mixed"): out_dir_existing / "s02_smarts_m_vs_experimental.csv",
         ("S02", "mqg"): out_dir_existing / "s02_mqg_vs_experimental.csv",
     }
 
@@ -373,20 +373,20 @@ def main() -> None:
             if model == "mqg" and "logKow_mqg" in pred_dedup.columns:
                 lut = pred_dedup.set_index(key)["logKow_mqg"]
                 df.loc[dataset_mask, "pred_mqg_logKow"] = sub[key].map(lut).to_numpy()
-            if model in {"smarts", "smarts_mixed"} and "logKow_smarts" in pred_dedup.columns:
+            if model in {"naefacree", "naefacree_mixed"} and "logKow_smarts" in pred_dedup.columns:
                 lut = pred_dedup.set_index(key)["logKow_smarts"]
                 df.loc[dataset_mask, f"pred_{model}_logKow"] = sub[key].map(lut).to_numpy()
         if dataset_tag == "S02":
             if model == "mqg" and "logKoa_mqg" in pred_dedup.columns:
                 lut = pred_dedup.set_index(key)["logKoa_mqg"]
                 df.loc[dataset_mask, "pred_mqg_logKoa"] = sub[key].map(lut).to_numpy()
-            if model in {"smarts", "smarts_mixed"} and "logKoa_smarts" in pred_dedup.columns:
+            if model in {"naefacree", "naefacree_mixed"} and "logKoa_smarts" in pred_dedup.columns:
                 lut = pred_dedup.set_index(key)["logKoa_smarts"]
                 df.loc[dataset_mask, f"pred_{model}_logKoa"] = sub[key].map(lut).to_numpy()
 
     # Live compute for models that are not fully covered by precomputed files.
     live_models = [
-        "kawow",
+        "crippen",
         "naef_crippen_mqg",
         "pfasgroups",
         "pfasgroups_mixed",

@@ -82,7 +82,7 @@ NAEF_KOW_CSV = DATA_DIR / "naef2024_logkow_parameters.csv"
 NAEF_KOA_CSV = DATA_DIR / "naef2024_logkoa_parameters.csv"
 
 ENSEMBLE_TYPES = ["naef_mqg", "crippen_mqg", "naef_crippen_mqg"]
-EXISTING_MODELS = ["kawow", "smarts", "smarts_mixed", "mqg"]
+EXISTING_MODELS = ["crippen", "naefacree", "naefacree_mixed", "mqg"]
 
 # ── ionisation helpers (reused from evaluate_by_ionization.py) ────────────────
 
@@ -285,9 +285,9 @@ def _load_existing_preds(endpoint_key: str) -> dict[str, np.ndarray] | None:
     # endpoint_key: "logKow" → looks for s01_*_vs_experimental.csv
     dataset = "s01" if "Kow" in endpoint_key else "s02"
     model_map = {
-        "kawow": f"{dataset}_kawow_vs_experimental.csv",
-        "smarts": f"{dataset}_smarts_vs_experimental.csv",
-        "smarts_mixed": f"{dataset}_smarts_m_vs_experimental.csv",
+        "crippen": f"{dataset}_kawow_vs_experimental.csv",
+        "naefacree": f"{dataset}_smarts_vs_experimental.csv",
+        "naefacree_mixed": f"{dataset}_smarts_m_vs_experimental.csv",
         "mqg": f"{dataset}_mqg_vs_experimental.csv",
     }
     preds = {}

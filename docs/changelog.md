@@ -1,4 +1,6 @@
 # Changelog
+## current
+- renaming of models for clarity
 
 ## 0.2.0 (2026-06-01)
 - Add random forest, boosting and neural net models based on PFASGroups, Crippen and Naef&Acree embeddings
