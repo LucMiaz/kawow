@@ -565,11 +565,14 @@ class TestRunModels:
 
     def test_working_models_run_without_error(self):
         """PFASGroups models (which work in run_models) return ok status."""
+        import importlib.util
         from kawow import run_models
         working_models = [
             "pfasgroups", "pfasgroups_naef", "pfasgroups_naef_crippen",
-            "pfasgroups_naef_crippen_rf", "pfasgroups_naef_crippen_xgb",
+            "pfasgroups_naef_crippen_rf",
         ]
+        if importlib.util.find_spec("xgboost") is not None:
+            working_models.append("pfasgroups_naef_crippen_xgb")
         results = run_models("c1ccccc1", models=working_models)
         assert len(results) == 1
         models_dict = results[0]["models"]
