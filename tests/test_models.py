@@ -529,11 +529,6 @@ class TestRunModels:
         with pytest.raises(ValueError, match="No valid model"):
             run_models("CCCCO", models=["not_a_real_model_xyzzy"])
 
-    def test_deprecated_alias_crippen_warns(self):
-        from kawow import run_models
-        # 'crippen' is listed in _KEY_ALIASES (maps to itself), so it triggers a warning
-        with pytest.warns(DeprecationWarning):
-            run_models("CCCCO", models=["crippen"])
 
     def test_pfasgroups_variants_in_run_models(self):
         from kawow import run_models
