@@ -61,9 +61,8 @@ _MODEL_MQG_LOGKOA = DATA_DIR / "logkoa_mqg_model.pkl"
 
 # Backward-compat aliases: old key → new canonical key
 _KEY_ALIASES: dict[str, str] = {
-    "crippen":        "crippen",
-    "naef":       "naefacree",
-    "naef_crippen": "naefacree_mixed",
+    "naefacree": "naef",
+    "naefacree_mixed": "naef_crippen",
 }
 
 
@@ -293,12 +292,12 @@ def run_models(
                 calculators[model_name] = MQGPartitionCalculator()
             elif model_name == "pfasgroups":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups")
+            elif model_name == "pfasgroups_crippen":
+                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_crippen")
             elif model_name == "pfasgroups_naef_crippen":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_crippen")
             elif model_name == "pfasgroups_naef":
                 calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef")
-            elif model_name == "pfasgroups_naef_crippen":
-                calculators[model_name] = PFASGroupsPartitionCalculator("pfasgroups_naef_crippen")
             elif model_name == "pfasgroups_naef_crippen_rf":
                 calculators[model_name] = PFASGroupsRFPartitionCalculator()
             elif model_name == "pfasgroups_naef_crippen_xgb":
