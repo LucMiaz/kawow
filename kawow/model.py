@@ -110,41 +110,64 @@ def _classify_partition(
     b_logkow_threshold: float = 2.0,
     vb_logkow_threshold: float = 5.0,
     b_logkoa_threshold: float = 6.0,
-    logkoc_from_kow_offset: float = 0.4,
-    m_logkoc_threshold: float = 4.5,
-    vm_logkoc_threshold: float = 3.5,
+    m_logkow_threshold: float = 4.5,
+    m_potential_logkow_threshold: float = 3.5,
+    vm_logkow_threshold: float = 2.5,
+    m_logkoc_threshold: float = 4.0,
+    vm_logkoc_threshold: float = 3.0,
 ) -> dict[str, Any]:
     """Classify B/vB and M/vM from predicted partition coefficients.
 
     Notes
     -----
-    - B and vB follow: logKoa >= 6 plus logKow >= 2 (B) or >= 5 (vB)
-      as used in Science 2006 (doi:10.1126/science.1138275).
-    - Mobility classes use an estimated logKoc from logKow:
-      logKoc_est = logKow - 0.4, then M if logKoc_est <= 4.5 and
-      vM if logKoc_est <= 3.5 (UBA drinking-water source protection guidance).
+    - B and vB follow: logKoa >= 6 plus logKow >= 2 (B) or >= 5 (vB), as
+      used by Kelly et al. 2007 (doi:10.1126/science.1138275).
+    - M and vM are formally defined on logKoc (M: logKoc < 4.0, vM:
+      logKoc < 3.0; Neumann & Schliebner 2019). This function only has
+      logKow/logKoa, so -- rather than estimating logKoc via a fixed
+      logKow offset -- it uses Arp & Hale's own empirically-validated
+      logKow screening proxy for this criterion (2019, UBA TEXTE
+      126/2019, their Fig. 9, neutral-compound branch): confident Not-M
+      above logKow=4.5 (their cutoff, validated at 93% sensitivity
+      against REACH drinking-water/groundwater monitoring data), a
+      "Potential M/vM" screening margin between 3.5 and 4.5 where
+      logKow alone cannot classify confidently, "M/vM" (mobile, unclear
+      if very) between 2.5 and 3.5, and confident vM (screening level)
+      below 2.5. Previous versions of this function derived the logKow
+      cutoffs from a fixed logKoc-from-logKow offset (logKoc_est =
+      logKow - 0.4); that approach is no longer used since it does not
+      match the field's own validated guidance for this exact proxy.
     """
-    logkoc_est = float(logkow - logkoc_from_kow_offset)
     is_B = bool((logkoa >= b_logkoa_threshold) and (logkow >= b_logkow_threshold))
     is_vB = bool((logkoa >= b_logkoa_threshold) and (logkow >= vb_logkow_threshold))
-    is_M = bool(logkoc_est <= m_logkoc_threshold)
-    is_vM = bool(logkoc_est <= vm_logkoc_threshold)
+    is_vM = bool(logkow <= vm_logkow_threshold)
+    is_M = bool(logkow <= m_logkow_threshold)
+    is_M_potential = bool(m_potential_logkow_threshold < logkow <= m_logkow_threshold)
 
     b_class = "vB" if is_vB else ("B" if is_B else "non-B")
-    m_class = "vM" if is_vM else ("M" if is_M else "non-M")
+    if is_vM:
+        m_class = "vM"
+    elif is_M_potential:
+        m_class = "Potential M/vM"
+    elif is_M:
+        m_class = "M"
+    else:
+        m_class = "non-M"
 
-    # ── Regulatory gaps ────────────────────────────────────────────────────
-    # Gap 1 (non vM, non vB): 3.5 < logKow < 5.0
-    in_gap1 = bool((logkow > 3.5) and (logkow < vb_logkow_threshold))
-    # Gap 2 (non M, non B, excl. aquatic): logKow > 4.9 AND logKoa < 6
-    m_logkow_threshold = m_logkoc_threshold + logkoc_from_kow_offset
-    in_gap2 = bool((logkow > m_logkow_threshold) and (logkoa < b_logkoa_threshold))
-    # Gap 3 (non M, non B, incl. aquatic): 4.9 < logKow < 5.0 AND logKoa < 6
+    # ── Regulatory gap (neither B nor M) ────────────────────────────────────
+    # Bounded above by vB, following the kawow benchmark article: beyond vB,
+    # the separate aquatic (BCF-based) bioaccumulation pathway would likely
+    # also flag the chemical even though it fails the air-breathing (Kelly)
+    # B criterion used here (see kawow article SI, "Aquatic bioaccumulation
+    # pathway"). in_gap1/in_gap2/gap_labels are retained for backward
+    # compatibility with existing callers; in_gap3 is the article's "the gap".
     in_gap3 = bool(
         (logkow > m_logkow_threshold)
         and (logkow < vb_logkow_threshold)
         and (logkoa < b_logkoa_threshold)
     )
+    in_gap1 = bool((logkow > vm_logkow_threshold) and (logkow < vb_logkow_threshold))
+    in_gap2 = bool((logkow > m_logkow_threshold) and (logkoa < b_logkoa_threshold))
     gap_labels = []
     if in_gap1:
         gap_labels.append("Gap 1")
@@ -153,16 +176,26 @@ def _classify_partition(
     if in_gap3:
         gap_labels.append("Gap 3")
 
+    region = (
+        "vB" if is_vB else
+        "B" if is_B else
+        "vM" if is_vM else
+        "M" if is_M else
+        "neither"
+    )
+
     return {
         "is_B": is_B,
         "is_vB": is_vB,
         "is_M": is_M,
         "is_vM": is_vM,
-        "logKoc_est": logkoc_est,
+        "is_M_potential": is_M_potential,
         "b_class": b_class,
         "m_class": m_class,
         "bm_class": b_class,
         "pb_class": m_class,
+        "region": region,
+        "in_gap": in_gap3,
         "in_gap1": in_gap1,
         "in_gap2": in_gap2,
         "in_gap3": in_gap3,
@@ -171,16 +204,11 @@ def _classify_partition(
             "B_logKoa_gte": float(b_logkoa_threshold),
             "B_logKow_gte": float(b_logkow_threshold),
             "vB_logKow_gte": float(vb_logkow_threshold),
-            "logKoc_est_from_logKow_offset": float(logkoc_from_kow_offset),
-            "M_logKoc_est_lte": float(m_logkoc_threshold),
-            "vM_logKoc_est_lte": float(vm_logkoc_threshold),
-            "gap1_logKow_gt": 3.5,
-            "gap1_logKow_lt": float(vb_logkow_threshold),
-            "gap2_logKow_gt": float(m_logkow_threshold),
-            "gap2_logKoa_lt": float(b_logkoa_threshold),
-            "gap3_logKow_gt": float(m_logkow_threshold),
-            "gap3_logKow_lt": float(vb_logkow_threshold),
-            "gap3_logKoa_lt": float(b_logkoa_threshold),
+            "M_logKow_lte": float(m_logkow_threshold),
+            "M_potential_logKow_gt": float(m_potential_logkow_threshold),
+            "vM_logKow_lte": float(vm_logkow_threshold),
+            "M_logKoc_lt": float(m_logkoc_threshold),
+            "vM_logKoc_lt": float(vm_logkoc_threshold),
         },
     }
 
