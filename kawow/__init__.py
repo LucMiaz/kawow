@@ -24,10 +24,11 @@ DOI: 10.3390/liquids4010011
 from .model import PartitionCalculator, MQGPartitionCalculator, EnsemblePartitionCalculator, PFASGroupsPartitionCalculator, PFASGroupsRFPartitionCalculator, PFASGroupsXGBPartitionCalculator, PFASGroupsNNPartitionCalculator, fit, fit_mqg, run_models
 from .smarts_model import NaefAcreePartitionCalculator, NaefAcreeCrippenPartitionCalculator
 from .io import parse_input
+from .criteria import CRITERIA, Criteria, get_criteria
 from .features import compute_features
 from .atom_types import FEATURE_LABELS, N_FEATURES
 
-__version__ = "0.1.5"
+__version__ = "1.1.0"
 __all__ = [
     "PartitionCalculator",
     "MQGPartitionCalculator",
@@ -42,6 +43,9 @@ __all__ = [
     "fit_mqg",
     "run_models",
     "parse_input",
+    "CRITERIA",
+    "Criteria",
+    "get_criteria",
     "compute_features",
     "FEATURE_LABELS",
     "N_FEATURES",

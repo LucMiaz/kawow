@@ -1,4 +1,11 @@
 # Changelog
+## 1.1.0 (2026-10-24)
+- Added `kawow.criteria` with two regulatory presets, `"uba"` (default, M as logKoc < 4.0) and `"clp"` (EU CLP Regulation, M as logKoc < 3.0, vM as logKoc < 2.0), and `get_criteria()` for custom thresholds
+- `run_models()` and `_classify_partition()` take a `criteria` argument; results report the preset used (`criteria`)
+- Added aquatic bioaccumulation flags (`is_B_aquatic`, `is_vB_aquatic`)
+- **Behaviour change:** `in_gap` (and `in_gap3`, `in_gap_bm`) now follows the benchmark article: neither M nor B by either route, bounded above by the aquatic B cutoff (logKow ≈ 4.6) instead of vB (5.0)
+- Corrected the README/quickstart description of the mobility proxy (Arp & Hale screening zones, not `logKow - 0.4`)
+
 ## 1.0.0 (2026-06-02)
 - renaming of models for clarity (breaking change)
 

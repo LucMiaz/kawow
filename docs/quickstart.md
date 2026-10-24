@@ -42,22 +42,25 @@ Each model result dictionary includes:
 | `b_class` | `"B"` | `logKoa ≥ 6` **and** `logKow ≥ 2` |
 | `b_class` | `"non-B"` | otherwise |
 
-**Mobility** — via `logKoc_est = logKow − 0.4` (UBA drinking-water guidance):
+**Aquatic bioaccumulation** (`is_B_aquatic`, `is_vB_aquatic`) — BCF ≈ 0.05·Kow: B at `logKow > 4.6` (BCF > 2 000), vB at `logKow > 5.0` (BCF > 5 000).
 
-| Key | Value | Condition | Equivalent `logKow` |
-|-----|-------|-----------|---------------------|
-| `m_class` | `"vM"` | `logKoc_est ≤ 3.5` | `logKow ≤ 3.9` |
-| `m_class` | `"M"` | `logKoc_est ≤ 4.5` | `logKow ≤ 4.9` |
-| `m_class` | `"non-M"` | otherwise | |
+**Mobility** — defined on log*K*oc and applied through a log*K*ow screening proxy. Two presets are available through the `criteria` argument of `run_models()` (`"uba"` by default, or `"clp"`), see `kawow/criteria.py`:
+
+| Preset | M (log*K*oc) | vM (log*K*oc) | M (log*K*ow) | Potential M/vM (log*K*ow) | vM (log*K*ow) |
+|--------|-------------|---------------|--------------|---------------------------|---------------|
+| `uba` (Neumann & Schliebner 2019; Arp & Hale 2019 screening zones) | < 4.0 | < 3.0 | ≤ 4.5 | 3.5–4.5 | ≤ 2.5 |
+| `clp` (Delegated Regulation (EU) 2023/707) | < 3.0 | < 2.0 | ≤ 3.5 | 2.5–3.5 | ≤ 1.5 |
+
+The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-unit as the log*K*oc cutoffs. Individual thresholds can be changed with `kawow.get_criteria("clp", vm_logkow_threshold=2.5)`.
 
 **Regulatory gaps**:
 
 | Key | Condition |
 |-----|-----------|
-| `in_gap1` | `3.5 < logKow < 5.0` |
-| `in_gap2` | `logKow > 4.9` and `logKoa < 6` |
-| `in_gap3` | `4.9 < logKow < 5.0` and `logKoa < 6` |
-| `gap_labels` | list of applicable gap strings, e.g. `["Gap 1", "Gap 3"]` |
+| `in_gap1` | between the vM cutoff and `logKow < 5.0` |
+| `in_gap2` | `logKow` above the M cutoff and `logKoa < 6` |
+| `in_gap` (= `in_gap3`, `in_gap_bm`) | neither M nor B by either route: `logKow` above the M cutoff and below the aquatic B cutoff (≈ 4.6), `logKoa < 6` |
+| `gap_labels` | list of applicable gap strings for `in_gap1`–`in_gap3` |
 
 ---
 
