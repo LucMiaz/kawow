@@ -30,6 +30,8 @@ import numpy as np
 from sklearn.linear_model import RidgeCV
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_squared_error
+
+from .criteria import Criteria, get_criteria
 from sklearn.model_selection import KFold, cross_val_predict, cross_val_score, train_test_split
 from scipy.stats import spearmanr
 from sklearn.pipeline import make_pipeline
@@ -107,42 +109,43 @@ _AVAILABLE_MODEL_NAMES = (
 def _classify_partition(
     logkow: float,
     logkoa: float,
-    b_logkow_threshold: float = 2.0,
-    vb_logkow_threshold: float = 5.0,
-    b_logkoa_threshold: float = 6.0,
-    m_logkow_threshold: float = 4.5,
-    m_potential_logkow_threshold: float = 3.5,
-    vm_logkow_threshold: float = 2.5,
-    m_logkoc_threshold: float = 4.0,
-    vm_logkoc_threshold: float = 3.0,
+    criteria: "str | Criteria | None" = None,
+    **overrides: float,
 ) -> dict[str, Any]:
     """Classify B/vB and M/vM from predicted partition coefficients.
 
+    Parameters
+    ----------
+    criteria:
+        Preset name (``"uba"``, the default, or ``"clp"``) or a
+        :class:`kawow.criteria.Criteria`; see :mod:`kawow.criteria` for the
+        thresholds and their sources.
+    **overrides:
+        Individual thresholds replacing those of the preset (same names as
+        the :class:`~kawow.criteria.Criteria` fields, e.g.
+        ``m_logkow_threshold=4.0``).
+
     Notes
     -----
-    - B and vB follow: logKoa >= 6 plus logKow >= 2 (B) or >= 5 (vB), as
-      used by Kelly et al. 2007 (doi:10.1126/science.1138275).
-    - M and vM are formally defined on logKoc (M: logKoc < 4.0, vM:
-      logKoc < 3.0; Neumann & Schliebner 2019). This function only has
-      logKow/logKoa, so -- rather than estimating logKoc via a fixed
-      logKow offset -- it uses Arp & Hale's own empirically-validated
-      logKow screening proxy for this criterion (2019, UBA TEXTE
-      126/2019, their Fig. 9, neutral-compound branch): confident Not-M
-      above logKow=4.5 (their cutoff, validated at 93% sensitivity
-      against REACH drinking-water/groundwater monitoring data), a
-      "Potential M/vM" screening margin between 3.5 and 4.5 where
-      logKow alone cannot classify confidently, "M/vM" (mobile, unclear
-      if very) between 2.5 and 3.5, and confident vM (screening level)
-      below 2.5. Previous versions of this function derived the logKow
-      cutoffs from a fixed logKoc-from-logKow offset (logKoc_est =
-      logKow - 0.4); that approach is no longer used since it does not
-      match the field's own validated guidance for this exact proxy.
+    - B and vB follow Kelly et al. 2007 (doi:10.1126/science.1138275):
+      logKoa >= 6 plus logKow >= 2 (B) or >= 5 (vB). ``is_B_aquatic`` and
+      ``is_vB_aquatic`` flag the aquatic (BCF ~ 0.05 Kow) route on logKow
+      alone (logKow > 4.6 and > 5.0).
+    - M and vM are formally defined on logKoc; they are applied here through
+      the logKow screening proxy of the selected preset.
+    - ``in_gap`` (also ``in_gap3`` and ``in_gap_bm``) is the gap of the
+      kawow benchmark article: neither M nor B by either route, that is
+      logKow above the M cutoff and below the aquatic B cutoff (~4.6), with
+      logKoa < 6. Before kawow 1.1 it was bounded by vB (logKow < 5).
     """
-    is_B = bool((logkoa >= b_logkoa_threshold) and (logkow >= b_logkow_threshold))
-    is_vB = bool((logkoa >= b_logkoa_threshold) and (logkow >= vb_logkow_threshold))
-    is_vM = bool(logkow <= vm_logkow_threshold)
-    is_M = bool(logkow <= m_logkow_threshold)
-    is_M_potential = bool(m_potential_logkow_threshold < logkow <= m_logkow_threshold)
+    c = get_criteria(criteria, **overrides)
+    is_B = bool((logkoa >= c.b_logkoa_threshold) and (logkow >= c.b_logkow_threshold))
+    is_vB = bool((logkoa >= c.b_logkoa_threshold) and (logkow >= c.vb_logkow_threshold))
+    is_B_aquatic = bool(logkow > c.b_aquatic_logkow_threshold)
+    is_vB_aquatic = bool(logkow > c.vb_aquatic_logkow_threshold)
+    is_vM = bool(logkow <= c.vm_logkow_threshold)
+    is_M = bool(logkow <= c.m_logkow_threshold)
+    is_M_potential = bool(c.m_potential_logkow_threshold < logkow <= c.m_logkow_threshold)
 
     b_class = "vB" if is_vB else ("B" if is_B else "non-B")
     if is_vM:
@@ -155,19 +158,9 @@ def _classify_partition(
         m_class = "non-M"
 
     # ── Regulatory gap (neither B nor M) ────────────────────────────────────
-    # Bounded above by vB, following the kawow benchmark article: beyond vB,
-    # the separate aquatic (BCF-based) bioaccumulation pathway would likely
-    # also flag the chemical even though it fails the air-breathing (Kelly)
-    # B criterion used here (see kawow article SI, "Aquatic bioaccumulation
-    # pathway"). in_gap1/in_gap2/gap_labels are retained for backward
-    # compatibility with existing callers; in_gap3 is the article's "the gap".
-    in_gap3 = bool(
-        (logkow > m_logkow_threshold)
-        and (logkow < vb_logkow_threshold)
-        and (logkoa < b_logkoa_threshold)
-    )
-    in_gap1 = bool((logkow > vm_logkow_threshold) and (logkow < vb_logkow_threshold))
-    in_gap2 = bool((logkow > m_logkow_threshold) and (logkoa < b_logkoa_threshold))
+    in_gap3 = bool(not is_M and not is_B and not is_B_aquatic)
+    in_gap1 = bool((logkow > c.vm_logkow_threshold) and (logkow < c.vb_logkow_threshold))
+    in_gap2 = bool((logkow > c.m_logkow_threshold) and (logkoa < c.b_logkoa_threshold))
     gap_labels = []
     if in_gap1:
         gap_labels.append("Gap 1")
@@ -187,6 +180,8 @@ def _classify_partition(
     return {
         "is_B": is_B,
         "is_vB": is_vB,
+        "is_B_aquatic": is_B_aquatic,
+        "is_vB_aquatic": is_vB_aquatic,
         "is_M": is_M,
         "is_vM": is_vM,
         "is_M_potential": is_M_potential,
@@ -196,24 +191,28 @@ def _classify_partition(
         "pb_class": m_class,
         "region": region,
         "in_gap": in_gap3,
+        "in_gap_bm": in_gap3,
         "in_gap1": in_gap1,
         "in_gap2": in_gap2,
         "in_gap3": in_gap3,
         "gap_labels": gap_labels,
+        "criteria": c.name,
         "thresholds": {
-            "B_logKoa_gte": float(b_logkoa_threshold),
-            "B_logKow_gte": float(b_logkow_threshold),
-            "vB_logKow_gte": float(vb_logkow_threshold),
-            "M_logKow_lte": float(m_logkow_threshold),
-            "M_potential_logKow_gt": float(m_potential_logkow_threshold),
-            "vM_logKow_lte": float(vm_logkow_threshold),
-            "M_logKoc_lt": float(m_logkoc_threshold),
-            "vM_logKoc_lt": float(vm_logkoc_threshold),
+            "B_logKoa_gte": float(c.b_logkoa_threshold),
+            "B_logKow_gte": float(c.b_logkow_threshold),
+            "vB_logKow_gte": float(c.vb_logkow_threshold),
+            "B_aquatic_logKow_gt": float(c.b_aquatic_logkow_threshold),
+            "vB_aquatic_logKow_gt": float(c.vb_aquatic_logkow_threshold),
+            "M_logKow_lte": float(c.m_logkow_threshold),
+            "M_potential_logKow_gt": float(c.m_potential_logkow_threshold),
+            "vM_logKow_lte": float(c.vm_logkow_threshold),
+            "M_logKoc_lt": float(c.m_logkoc_threshold),
+            "vM_logKoc_lt": float(c.vm_logkoc_threshold),
         },
     }
 
 
-def _normalise_model_prediction(raw: dict[str, Any], model_name: str) -> dict[str, Any]:
+def _normalise_model_prediction(raw: dict[str, Any], model_name: str, criteria: "str | Criteria | None" = None) -> dict[str, Any]:
     """Normalize predictions from all calculator classes to one schema."""
     if not isinstance(raw, dict):
         return {
@@ -252,7 +251,7 @@ def _normalise_model_prediction(raw: dict[str, Any], model_name: str) -> dict[st
         if "in_coverage" in raw:
             out["in_coverage"] = bool(raw.get("in_coverage"))
 
-    out.update(_classify_partition(out["logKow"], out["logKoa"]))
+    out.update(_classify_partition(out["logKow"], out["logKoa"], criteria))
     return out
 
 
@@ -260,6 +259,7 @@ def run_models(
     inp,
     models: list[str] | tuple[str, ...] | None = None,
     fmt: str = "auto",
+    criteria: "str | Criteria | None" = None,
 ) -> list[dict[str, Any]]:
     """Run one or more kawow models and return aligned results per molecule.
 
@@ -276,6 +276,10 @@ def run_models(
         If omitted, all available models are used.
     fmt:
         Input format forwarded to :func:`kawow.io.parse_input`.
+    criteria:
+        Regulatory criteria used for the B/M classification: ``"uba"``
+        (default; M as logKoc < 4.0), ``"clp"`` (EU CLP Regulation; M as
+        logKoc < 3.0) or a :class:`kawow.criteria.Criteria`.
     """
     from .io import parse_input
     from .smarts_model import (
@@ -378,7 +382,7 @@ def run_models(
                     pred = calculator.predict(mol, fmt="mol")
                 except TypeError:
                     pred = calculator.predict(mol)
-                norm = _normalise_model_prediction(pred, model_name=model_name)
+                norm = _normalise_model_prediction(pred, model_name=model_name, criteria=criteria)
             except Exception as exc:
                 norm = {
                     "model": model_name,
