@@ -2,44 +2,13 @@
 
 [![CI](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml/badge.svg)](https://github.com/LucMiaz/kawow/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-green.svg)](LICENSE)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-green.svg)](https://github.com/LucMiaz/kawow/blob/main/LICENSE)
 
 ![Kawow!](logo/kawow.svg)
 
-Group-additivity prediction of **log*K*ow**, **log*K*oa**, and **log*K*aw** from molecular structure.
+Prediction of **log*K*ow**, **log*K*oa** and **log*K*aw** from molecular structure.
 
-*Kawow* implements some models to predict partitioning coefficients (`logKoa`, `logKow` and `logKaw`), in particular the Naef & Acree (2024) group-additivity scheme using RDKit SMARTS pattern matching. Two model families are available depending on how much transparency or accuracy is required.
-
-### Flagging criteria used in outputs
-
-`run_models(...)` returns B/vB, M/vM, and regulatory-gap flags derived from predicted partition values.
-
-**Bioaccumulation** (following doi:[10.1126/science.1138275](https://doi.org/10.1126/science.1138275)):
-
-| Flag | Condition |
-|------|-----------|
-| `B`  | `logKoa ≥ 6` **and** `logKow ≥ 2` |
-| `vB` | `logKoa ≥ 6` **and** `logKow ≥ 5` |
-
-**Aquatic bioaccumulation** (`is_B_aquatic`, `is_vB_aquatic`) — BCF ≈ 0.05·Kow: B at `logKow > 4.6` (BCF > 2 000), vB at `logKow > 5.0` (BCF > 5 000).
-
-**Mobility** — defined on log*K*oc and applied through a log*K*ow screening proxy. Two presets are available through the `criteria` argument of `run_models()` (`"uba"` by default, or `"clp"`), see `kawow/criteria.py`:
-
-| Preset | M (log*K*oc) | vM (log*K*oc) | M (log*K*ow) | Potential M/vM (log*K*ow) | vM (log*K*ow) |
-|--------|-------------|---------------|--------------|---------------------------|---------------|
-| `uba` (Neumann & Schliebner 2019; Arp & Hale 2019 screening zones) | < 4.0 | < 3.0 | ≤ 4.5 | 3.5–4.5 | ≤ 2.5 |
-| `clp` (Delegated Regulation (EU) 2023/707) | < 3.0 | < 2.0 | ≤ 3.5 | 2.5–3.5 | ≤ 1.5 |
-
-The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-unit as the log*K*oc cutoffs. Individual thresholds can be changed with `kawow.get_criteria("clp", vm_logkow_threshold=2.5)`.
-
-**Regulatory gaps**:
-
-| Key | Condition |
-|-----|-----------|
-| `in_gap1` | between the vM cutoff and `logKow < 5.0` |
-| `in_gap2` | `logKow` above the M cutoff and `logKoa < 6` |
-| `in_gap` (= `in_gap3`, `in_gap_bm`) | neither M nor B by either route: `logKow` above the M cutoff and below the aquatic B cutoff (≈ 4.6), `logKoa < 6` |
-| `gap_labels` | list of applicable gap strings for `in_gap1`–`in_gap3` |
+*Kawow* implements several models for these partition coefficients: the Naef & Acree (2024) group-additivity scheme (RDKit SMARTS matching, published parameters), ridge regressions on Crippen atom types and Naef & Acree group counts, and models adding Molecular Quantum Graph (MQG) or PFASGroups descriptors. `run_models()` also classifies every prediction against regulatory bioaccumulation (B/vB) and mobility (M/vM) criteria.
 
 ---
 
@@ -49,7 +18,7 @@ The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-un
 pip install kawow
 ```
 
-Or from source (requires RDKit ≥ 2022.9):
+Or from source (Python ≥ 3.10, RDKit ≥ 2022.9):
 
 ```bash
 git clone https://github.com/LucMiaz/kawow.git
@@ -57,25 +26,11 @@ cd kawow
 pip install -e ".[dev]"
 ```
 
+The XGBoost and neural-network models need `pip install "kawow[ml]"`; the `mqg`, `naef_mqg` and `crippen_mqg` models need the `molecular_quantum_graph` package.
+
 ---
 
-## Models at a glance
-
-log*K*ow and log*K*oa R² values are from 5-fold cross-validation on the shared S01∩S02 benchmark (n = 3 319 for log*K*ow; n = 1 956 for log*K*oa), except `NaefAcree` which applies fixed Naef & Acree (2024) parameters directly (no re-fitting). log*K*aw R² is from external validation on the full S03 dataset (Naef & Acree 2024; n = 2 130-2 150; S03 was not used for training).
-
-| Model key | Class | Approach | log*K*ow R² | log*K*oa R² | log*K*aw R² |
-|-----------|-------|----------|-------------|-------------|-------------|
-| `crippen` | `PartitionCalculator` | Ridge regression on Crippen atom-type counts + NaefAcree special-group features | 0.898 (cv) | 0.937 (cv) | — |
-| `naef` | `NaefAcreePartitionCalculator` | Pure Naef & Acree 2024 group-additivity (no re-fitting, tabulated parameters only) | 0.857 | 0.785 | 0.654 |
-| `naef_crippen` | `NaefAcreeCrippenPartitionCalculator` | NaefAcree SMARTS contributions + Crippen atom-type Ridge | 0.938 (cv) | 0.943 (cv) | **0.912** |
-| `mqg` | `MQGPartitionCalculator` | Ridge regression: NaefAcree group contributions + Crippen atom types + Molecular Quantum Graph fingerprints | 0.940 (cv) | 0.942 (cv) | **0.913** |
-| `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts | 0.939 (cv) | 0.937 (cv) | — |
-| `pfasgroups_naef_crippen` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups (77-dim) + NaefAcree group counts + Crippen atom types (91-dim) | 0.941 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_crippen_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.909 (cv) | 0.926 (cv) | — |
-| `pfasgroups_naef_crippen_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (1000 trees, early stopping) on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` | 0.940 (cv) | 0.941 (cv) | — |
-| `pfasgroups_naef_crippen_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256→128→64] on PFASGroups + NaefAcree + Crippen features; requires `pip install kawow[ml]` with keras installed | 0.946 (cv) | 0.940 (cv) | — |
-
-Use `run_models()` to run several models at once and get per-molecule B/vB and M/vM flags:
+## Quick start
 
 ```python
 import kawow
@@ -85,188 +40,174 @@ results = kawow.run_models(
     models=["crippen", "naef_crippen"],
 )
 for row in results:
-    print(row["smiles"], row["models"]["crippen"]["logKow"],
-          row["models"]["crippen"]["b_class"])
+    r = row["models"]["naef_crippen"]
+    print(row["smiles"], r["logKow"], r["logKoa"], r["b_class"], r["m_class"], r["in_gap"])
 ```
 
-Each element of the returned list is a `dict` with:
+`run_models()` returns one `dict` per molecule with `name`, `smiles`, `ok` (at least one model succeeded) and `models`, a `dict` keyed by model name. Each model entry contains:
 
 | Key | Description |
 |-----|-------------|
-| `smiles` | canonical SMILES |
-| `name` | molecule name from input |
-| `models` | `dict` keyed by model name; each value contains `logKow`, `logKoa`, `logKaw`, `b_class`, `m_class`, `ok` |
-| `ok` | `True` if at least one model succeeded |
+| `status`, `ok`, `error` | outcome of the prediction (`error` only on failure) |
+| `logKow`, `logKoa`, `logKaw` | predicted partition coefficients |
+| `is_B`, `is_vB`, `b_class` | bioaccumulation (Kelly et al. 2007 criterion) |
+| `is_B_aquatic`, `is_vB_aquatic` | bioaccumulation through the aquatic (BCF) route |
+| `is_M`, `is_vM`, `is_M_potential`, `m_class` | mobility |
+| `region` | `"vB"`, `"B"`, `"vM"`, `"M"` or `"neither"` |
+| `in_gap`, `in_gap1`, `in_gap2`, `in_gap3`, `in_gap_bm`, `gap_labels` | regulatory gaps (see below) |
+| `criteria`, `thresholds` | criteria preset and threshold values used |
+
+### Classification criteria
+
+**Bioaccumulation**, air-breathing organisms (Kelly et al. 2007, [doi:10.1126/science.1138275](https://doi.org/10.1126/science.1138275)):
+
+| Flag | Condition |
+|------|-----------|
+| `B`  | `logKoa ≥ 6` **and** `logKow ≥ 2` |
+| `vB` | `logKoa ≥ 6` **and** `logKow ≥ 5` |
+
+**Aquatic bioaccumulation** (`is_B_aquatic`, `is_vB_aquatic`), from BCF ≈ 0.05·Kow (Mackay et al. 2013): B at `logKow > 4.6` (BCF > 2 000), vB at `logKow > 5.0` (BCF > 5 000).
+
+**Mobility** is defined on log*K*oc and applied through a log*K*ow screening proxy. Two presets are available through the `criteria` argument (`"uba"` by default), defined in [`kawow/criteria.py`](https://github.com/LucMiaz/kawow/blob/main/kawow/criteria.py):
+
+| Preset | M (log*K*oc) | vM (log*K*oc) | M (log*K*ow) | Potential M/vM (log*K*ow) | vM (log*K*ow) |
+|--------|-------------|---------------|--------------|---------------------------|---------------|
+| `uba` (Neumann & Schliebner 2019; Arp & Hale 2019 screening zones) | < 4.0 | < 3.0 | ≤ 4.5 | 3.5–4.5 | ≤ 2.5 |
+| `clp` (Delegated Regulation (EU) 2023/707) | < 3.0 | < 2.0 | ≤ 3.5 | 2.5–3.5 | ≤ 1.5 |
+
+The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-unit as the log*K*oc cutoffs. Single thresholds can be changed:
+
+```python
+results = kawow.run_models("CCCCCC", criteria="clp")
+custom = kawow.get_criteria("clp", vm_logkow_threshold=2.5)   # e.g. Koc ≈ 0.35·Kow for vM
+results = kawow.run_models("CCCCCC", criteria=custom)
+```
+
+**Regulatory gaps**:
+
+| Key | Condition |
+|-----|-----------|
+| `in_gap` (= `in_gap3`, `in_gap_bm`) | neither M nor B by either route: `logKow` above the M cutoff and below the aquatic B cutoff (≈ 4.6), with `logKoa < 6` |
+| `in_gap1` | `logKow` between the vM cutoff and 5.0 (neither vM nor vB) |
+| `in_gap2` | `logKow` above the M cutoff and `logKoa < 6` |
+| `gap_labels` | list of the gaps that apply (`"Gap 1"` to `"Gap 3"`) |
 
 ---
 
-## 1 — `PartitionCalculator` (recommended for most uses)
+## Models
 
-Ridge regression fitted on the same S01/S02 datasets. Coefficients are stored in `kawow/data/*.json` so no re-fitting is needed at import time.
+| Model key | Class | Approach | log*K*ow R² | log*K*oa R² | log*K*aw R² |
+|-----------|-------|----------|-------------|-------------|-------------|
+| `crippen` | `PartitionCalculator` | Ridge regression on Crippen atom types + special groups | 0.898 | 0.937 | — |
+| `naef` | `NaefAcreePartitionCalculator` | Naef & Acree (2024) group additivity, published parameters (no fitting) | 0.857 | 0.777 | 0.654 |
+| `naef_crippen` | `NaefAcreeCrippenPartitionCalculator` | Ridge regression on Naef & Acree group counts + Crippen atom types | 0.938 | 0.943 | 0.912 |
+| `mqg` | `MQGPartitionCalculator` | Ridge regression on Naef & Acree + Crippen + MQG fingerprints | 0.940 | 0.941 | 0.913 |
+| `naef_mqg`, `crippen_mqg` | `EnsemblePartitionCalculator` | Ridge regression on MQG fingerprints + Naef & Acree or Crippen features | — | — | — |
+| `pfasgroups` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups descriptors | 0.785 | 0.896 | — |
+| `pfasgroups_crippen` | `PFASGroupsPartitionCalculator` | PFASGroups + Crippen | 0.911 | 0.941 | — |
+| `pfasgroups_naef` | `PFASGroupsPartitionCalculator` | PFASGroups + Naef & Acree | 0.940 | 0.939 | — |
+| `pfasgroups_naef_crippen` | `PFASGroupsPartitionCalculator` | PFASGroups + Naef & Acree + Crippen | 0.943 | 0.943 | — |
+| `pfasgroups_naef_crippen_rf` | `PFASGroupsRFPartitionCalculator` | Random Forest (300 trees), same features | 0.909 | 0.926 | — |
+| `pfasgroups_naef_crippen_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (early stopping), same features; needs `kawow[ml]` | 0.936 | 0.941 | — |
+| `pfasgroups_naef_crippen_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256-128-64], same features; needs `kawow[ml]` | 0.946 | 0.940 | — |
+
+log*K*ow and log*K*oa R² are from 5-fold cross-validation with shared folds on the common evaluation set of the Naef & Acree datasets (n = 3 319 for log*K*ow, S01; n = 1 956 for log*K*oa, S02), from [`tests/out/shared_fold_benchmark.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/shared_fold_benchmark.csv) (`scripts/shared_fold_benchmark.py`). `naef` uses the published parameters and is evaluated on the same molecules without fitting. log*K*aw R² is an external validation on the Naef & Acree S03 dataset (n = 2 130–2 150), which was not used for training. The old keys `naefacree` and `naefacree_mixed` still work and map to `naef` and `naef_crippen`.
+
+The Random Forest and XGBoost models of the manuscript (trained on Naef & Acree + Crippen features only) are part of the benchmark ([`scripts/benchmark_5model.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/benchmark_5model.py)) and are not available through `run_models()`.
+
+### Benchmark of the five manuscript models
+
+5-fold cross-validation on the common evaluation set, from [`tests/out/benchmark_metrics_5model.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/benchmark_metrics_5model.csv) (`scripts/benchmark_5model.py`). AUC, AP (average precision), balanced accuracy and MCC classify `logKow ≥ 4.6` (aquatic B) and `logKoa ≥ 6` (B).
+
+| Model | Endpoint | R² | RMSE | AUC | AP | Bal. Acc. | MCC |
+|-------|----------|----|------|-----|----|-----------|-----|
+| Crippen | log*K*ow | 0.898 | 0.663 | 0.992 | 0.961 | 0.913 | 0.863 |
+| Naef & Acree | log*K*ow | 0.857 | 0.785 | 0.987 | 0.956 | 0.934 | 0.873 |
+| Crippen + Naef & Acree | log*K*ow | 0.938 | 0.518 | 0.996 | 0.973 | 0.933 | 0.890 |
+| Random Forest | log*K*ow | 0.916 | 0.604 | 0.990 | 0.962 | 0.913 | 0.882 |
+| XGBoost | log*K*ow | 0.944 | 0.491 | 0.995 | 0.975 | 0.937 | 0.886 |
+| Crippen | log*K*oa | 0.937 | 0.737 | 0.990 | 0.994 | 0.944 | 0.888 |
+| Naef & Acree | log*K*oa | 0.777 | 1.387 | 0.974 | 0.985 | 0.932 | 0.860 |
+| Crippen + Naef & Acree | log*K*oa | 0.943 | 0.702 | 0.990 | 0.994 | 0.946 | 0.893 |
+| Random Forest | log*K*oa | 0.911 | 0.874 | 0.988 | 0.993 | 0.944 | 0.886 |
+| XGBoost | log*K*oa | 0.934 | 0.753 | 0.991 | 0.995 | 0.950 | 0.898 |
+
+---
+
+## `PartitionCalculator`
+
+Ridge regression on Crippen atom types and special groups, fitted on the Naef & Acree datasets. Coefficients are stored in `kawow/data/*.json`, so nothing is fitted at import time.
 
 ```python
 from kawow import PartitionCalculator
 
-calc = PartitionCalculator()           # Ridge (default)
+calc = PartitionCalculator()
 
-# Single molecule from SMILES
-result = calc.predict("CCCCO")        # 1-butanol
-print(result)
-# {'logKow': 0.88, 'logKoa': 4.12, 'logKaw': -3.24, 'status': 'ok'}
+calc.predict("CCCCO")    # 1-butanol
+# {'logKow': 1.095, 'logKoa': 4.368, 'logKaw': -3.273, 'status': 'ok', 'name': 'CCCCO', 'smiles': 'CCCCO'}
 
-# Batch prediction
-smiles = ["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"]
-for r in calc.predict_batch(smiles):
+for r in calc.predict_batch(["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"]):
     print(r["smiles"], r["logKow"], r["logKoa"], r["logKaw"])
 ```
 
-**Predict from an InChI string or SDF file:**
+`predict()` also accepts InChI strings, RDKit molecules, SDF files, lists and multi-line SMILES blocks (`SMILES name` per line); it returns a list for multiple molecules and skips inputs that cannot be parsed.
 
 ```python
-r = calc.predict("InChI=1S/C4H10O/c1-2-3-4-5/h5H,2-4H2,1H3")
-results = calc.predict("compounds.sdf")   # returns list[dict]
+calc.model_info["logKow"]
+# {'target': 'logKow', 'n_train': 3234, 'alpha': 51.79, 'r2_cv': 0.898, 'rmse_cv': 0.6643,
+#  'intercept': 0.399, ...}  (plus the fitted coefficients)
 ```
 
-**Inspect model metadata:**
-
-```python
-info = calc.model_info
-print(info["logKow"])
-# {'target': 'logKow', 'n_train': 3234, 'alpha': 51.8,
-#  'r2_cv': 0.8980, 'rmse_cv': 0.6643,
-#  'ccc_cv': 0.9470,          # Lin's concordance correlation coefficient
-#  'nrmse_sd_cv': 0.2770,     # RMSE / σ(logKow_train)
-#  'nrmse_range_cv': 0.0580,  # RMSE / range(logKow_train)
-#  'bf10_log10_cv': '>10^300',# log₁₀ Bayes factor (H₁: ρ ≠ 0)
-#  'r_ci95_cv': [0.945, 0.951],  # 95 % CI on Pearson ρ
-#  ...}
-```
-
-**Re-fit on your own training data:**
+Re-fit on your own data (overwrites the JSON files in the package directory):
 
 ```python
 import kawow
-kawow.fit(
-    sdf_logkow="my_logkow.sdf",
-    sdf_logkoa="my_logkoa.sdf",
-    logkow_prop="logP",
-    logkoa_prop="logKoa",
-)
+kawow.fit(sdf_logkow="my_logkow.sdf", sdf_logkoa="my_logkoa.sdf",
+          logkow_prop="logP", logkoa_prop="logKoa")
 calc = kawow.PartitionCalculator()   # reload after fitting
 ```
 
-### Performance (Naef & Acree benchmark datasets)
-
-All values are from 5-fold cross-validation on the shared S01∩S02 intersection, except NaefAcree (no fitting; evaluated on full S01/S02/S03) and the log*K*aw rows (external validation on full S03 — S03 was never used for training).
-
-| Model | Property | n | R² | RMSE | Note |
-|-------|----------|---|-----|------|------|
-| Crippen | log*K*ow | 3 319 | 0.898 | 0.664 | 5-fold CV |
-| Crippen | log*K*oa | 1 956 | 0.937 | 0.740 | 5-fold CV |
-| NaefAcree | log*K*ow | 3 344 | 0.857 | 0.786 | external (S01 full) |
-| NaefAcree | log*K*oa | 1 983 | 0.785 | 1.387 | external (S02 full) |
-| NaefAcree | log*K*aw | 2 150 | 0.654 | 1.758 | external (S03 full) |
-| NaefAcree + Crippen | log*K*ow | 3 319 | **0.938** | 0.518 | 5-fold CV |
-| NaefAcree + Crippen | log*K*oa | 1 956 | **0.943** | 0.702 | 5-fold CV |
-| NaefAcree + Crippen | log*K*aw | 2 150 | **0.912** | 0.886 | external (S03 full) |
-| MQG + NaefAcree + Crippen | log*K*ow | 3 319 | **0.940** | 0.510 | 5-fold CV |
-| MQG + NaefAcree + Crippen | log*K*oa | 1 956 | **0.942** | 0.705 | 5-fold CV |
-| MQG + NaefAcree + Crippen | log*K*aw | 2 130 | **0.913** | 0.882 | external (S03 full) |
-| PFASGroups + NaefAcree + Crippen (RF) | log*K*ow | 3 319 | 0.909 | 0.630 | 5-fold CV |
-| PFASGroups + NaefAcree + Crippen (RF) | log*K*oa | 1 956 | 0.926 | 0.800 | 5-fold CV |
-| PFASGroups + NaefAcree + Crippen (XGB) | log*K*ow | 3 319 | **0.936** | 0.527 | 5-fold CV |
-| PFASGroups + NaefAcree + Crippen (XGB) | log*K*oa | 1 956 | **0.941** | 0.716 | 5-fold CV |
-| PFASGroups + NaefAcree + Crippen (NN) | log*K*ow | 3 319 | **0.946** | 0.485 | 5-fold CV |
-| PFASGroups + NaefAcree + Crippen (NN) | log*K*oa | 1 956 | **0.940** | 0.719 | 5-fold CV |
-
-### Regulatory classification performance (F1 scores)-
-
-Binary classification F1 scores on the shared S01∩S02 benchmark (1 083-1 102 molecules with paired experimental log*K*ow and log*K*oa). Flags are applied to **predicted** values using the same thresholds as `run_models()`. `naef_mqg` and `crippen_mqg` are available via `EnsemblePartitionCalculator`.
-
-| Label | Condition | n (+) | `crippen` | `naef` | `naef_crippen_` | `naef_mqg` | `crippen_mqg` | `mqg` |
-|-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
-| G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
-| G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
-| G3 | 4.5 < log*K*ow < 5.0 and log*K*oa < 6 | 11 | 0.00 | **0.27** | 0.13 | 0.13 | 0.00 | — |
-| M | log*K*oc_est ≤ 4.5 | 797 | 0.97 | 0.98 | **0.98** | 0.98 | 0.97 | 0.95 |
-| vM | log*K*oc_est ≤ 3.5 | 677 | 0.95 | 0.96 | **0.97** | **0.97** | 0.95 | 0.95 |
-| B | log*K*ow ≥ 2 and log*K*oa ≥ 6 | 503 | 0.94 | 0.94 | **0.96** | 0.95 | 0.95 | 0.94 |
-| vB | log*K*ow ≥ 5 and log*K*oa ≥ 6 | 266 | 0.92 | 0.93 | 0.93 | **0.94** | 0.93 | 0.79 |
-
-n (+): true-positive molecule count. — = model makes 0 positive predictions (precision undefined). G3 has only 11 true-positive molecules; most models do not recover this rare class.
-
 ---
 
-## 2 — `NaefAcreePartitionCalculator` (SMARTS additivity, full transparency)
+## `NaefAcreePartitionCalculator`
 
-Implements the Naef & Acree 2024 method exactly: each SMARTS pattern from the paper's supplementary tables is matched against the molecule and its tabulated contribution added. No matrix regression — every contribution is directly interpretable.
+Implements the Naef & Acree (2024) method: each SMARTS pattern of the paper's supplementary tables is matched against the molecule and its tabulated contribution is added, so every contribution is directly interpretable.
 
 ```python
-from kawow.smarts_model import NaefAcreePartitionCalculator
+from kawow import NaefAcreePartitionCalculator
 
-calc = NaefAcreePartitionCalculator(smiles="c1ccccc1")
-result = calc.predict("c1ccccc1")
-# {'logKow': 2.13, 'logKoa': 2.80, 'logKaw': -0.67, 'in_coverage': True}
+calc = NaefAcreePartitionCalculator()
+calc.predict("c1ccccc1")
+# {'logKow': 2.35, 'logKoa': 3.14, 'logKaw': -0.79, 'in_coverage': True}
 
-# Or pass a pre-built RDKit mol:
-from rdkit import Chem
-mol = Chem.MolFromSmiles("CCCCCCCCCC")
-result = calc.predict(mol)
-
-# Batch via constructor:
-calc_batch = NaefAcreePartitionCalculator(
-    smiles=["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"]
-)
-for mol, coeffs in calc_batch.results.items():
+batch = NaefAcreePartitionCalculator(smiles=["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"])
+for mol, coeffs in batch.results.items():
     print(coeffs)
 ```
 
-### Performance (Naef & Acree tabulated parameters, evaluated on benchmark sets)
-
-The NaefAcree model applies the published Naef & Acree (2024) parameters without any re-fitting. Performance is evaluated on the full individual datasets and on the shared S01∩S02 benchmark intersection.
-
 | Dataset | Property | n | R² | RMSE |
 |---------|----------|---|-----|------|
-| S01 (Naef 2024, full) | log*K*ow | 3 344 | **0.857** | 0.786 |
-| S02 (Naef 2024, full) | log*K*oa | 1 983 | **0.785** | 1.387 |
-| S03 (Naef 2024, full) | log*K*aw | 2 150 | **0.654** | 1.758 |
-| S01∩S02 intersection | log*K*ow | 3 319 | 0.857 | 0.785 |
-| S01∩S02 intersection | log*K*oa | 1 956 | 0.777 | 1.387 |
+| S01 (full) | log*K*ow | 3 344 | 0.857 | 0.786 |
+| S02 (full) | log*K*oa | 1 983 | 0.785 | 1.387 |
+| S03 (full) | log*K*aw | 2 150 | 0.654 | 1.758 |
+| Common evaluation set | log*K*ow | 3 319 | 0.857 | 0.785 |
+| Common evaluation set | log*K*oa | 1 956 | 0.777 | 1.387 |
 
-The remaining error is concentrated in specific chemotypes (notably highly heteroatom-rich agrochemical scaffolds), while the broad SMARTS generalization and pi-environment fixes substantially improved overall log*K*oa performance on S02.
-
-### Correlation plots
+The remaining error is concentrated in specific chemotypes, notably heteroatom-rich agrochemical scaffolds.
 
 | log*K*ow vs Naef S01 | log*K*oa vs Naef S02 | log*K*ow vs Arp & Hale |
 |:--------------------:|:--------------------:|:----------------------:|
-| ![logKow vs S01](docs/imgs/corr_smarts_kow_vs_s01.png) | ![logKoa vs S02](docs/imgs/corr_smarts_koa_vs_s02.png) | ![logKow vs Excel](docs/imgs/corr_smarts_kow_vs_excel.png) |
+| ![logKow vs S01](docs/imgs/corr_smarts_kow_vs_s01.png) | ![logKoa vs S02](docs/imgs/corr_smarts_koa_vs_s02.png) | ![logKow vs Arp & Hale](docs/imgs/corr_smarts_kow_vs_excel.png) |
 
 ---
 
-## Feature engineering
+## Features
 
-Each molecule is represented by counts of SMARTS atom-type groups from the Naef & Acree parameter tables, plus five special-group descriptors:
+The Crippen feature vector (`compute_features`) has 78 entries: counts of the 72 Crippen atom types of RDKit's `Crippen.txt` (first-match priority, SMARTS only; RDKit's logP contributions are not used) and six special groups following Naef & Acree (2024): intramolecular H-bond donor/acceptor pairs within five bonds, carbon count of pure saturated hydrocarbons, carbon count of pure unsaturated acyclic hydrocarbons, carboxylic-acid groups beyond the first, hydroxyl groups beyond the first, and endocyclic C–C single bonds. See [docs/features.md](https://github.com/LucMiaz/kawow/blob/main/docs/features.md), which also describes the PFASGroups descriptors.
 
-- **pi-neighbour moieties** — the number of conjugated systems adjacent to a centre atom (controls which entry in a pi-stratified table applies; computed by `count_conjugated_neighbor_moieties`)
-- **H-acceptor binary presence** — 1 if any intramolecular H-bond donor/acceptor pair is within 5 bonds
-- **Alkane flag** — 1 if the molecule is a pure saturated hydrocarbon
-- **Unsaturated HC flag** — 1 if the molecule is a pure unsaturated hydrocarbon
-- **Extra −COOH count** — number of carboxylic acid groups beyond the first
-- **Endocyclic C−C single bond count**
+### Additional metrics
 
-The `PartitionCalculator` additionally uses 72 Crippen atom-type features (from RDKit's `Crippen.txt`) on top of the 5 NaefAcree special groups.
-
-### Extended metrics
-
-In addition to R² and RMSE, kawow reports the following metrics for each trained endpoint:
-
-| Metric | Symbol | Description |
-|--------|--------|-------------|
-| **CCC** | — | Lin's concordance correlation coefficient (Lin 1989): combines precision and accuracy in [−1, 1]. |
-| **NRMSE (σ)** | `nrmse_sd_cv` | RMSE / σ(y_train): scale-free error relative to training set spread. |
-| **NRMSE (range)** | `nrmse_range_cv` | RMSE / (max − min)(y_train): error as a fraction of the data range. |
-| **log₁₀(BF₁₀)** | `bf10_log10_cv` | BIC-approximated Bayes factor for H₁: ρ ≠ 0 (Ly et al. 2015). Values > 1 decisively support the correlation hypothesis. At n > 3000, all models give ">10^300". |
-| **95 % CI on ρ** | `r_ci95_cv` | Fisher z-transform confidence interval on the cross-validated Pearson correlation. |
+The benchmark also reports Lin's concordance correlation coefficient (CCC; Lin 1989), the RMSE normalised by the standard deviation and by the range of the data, and a BIC-approximated Bayes factor for a non-zero correlation (Ly et al. 2015), in [`tests/out/shared_fold_benchmark.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/shared_fold_benchmark.csv). The functions are in `kawow.metrics`.
 
 <!-- METRICS_DATA_BEGIN -->
 
@@ -299,41 +240,41 @@ In addition to R² and RMSE, kawow reports the following metrics for each traine
 
 <!-- METRICS_DATA_END -->
 
-Access these via `model_info` (see code example above) or via the benchmark script output (`benchmark_results.csv`).
+### Y-randomisation
 
-### Y-randomization (permutation test)
-
-Run via `shared_fold_benchmark.py --y-randomization` (default: 1 000 permutations, Ridge 5-fold CV).
-Trainable models are tested (crippen, naef_crippen, mqg, naef_crippen_mqg, pfasgroups,
-pfasgroups_crippen, pfasgroups_naef, pfasgroups_naef_crippen); the pure SMARTS lookup is excluded.
-Results are saved to `tests/out/y_randomization.csv`.
-
-A non-significant p-value (fraction of permuted R² ≥ observed R²) confirms the model captures genuine structure-property relationships rather than overfitting to label order.
-Use the CSV directly for publication numbers, because observed values depend on run settings
-(e.g., max-samples/permutation count) while permutation baselines remain near zero.
-
+`python scripts/shared_fold_benchmark.py --y-randomization` permutes the target values (1 000 permutations by default, `--y-rand-permutations`) for the trainable models of the shared-fold benchmark and writes `tests/out/y_randomization.csv`. A model captures a genuine structure–property relationship when its observed R² lies far above the permuted values, that is when the p-value (fraction of permuted R² ≥ observed R²) is close to zero. The y-randomisation reported in the manuscript (Crippen and Crippen + Naef & Acree, 300 permutations) is produced by [`manuscript/yrandomization.py`](https://github.com/LucMiaz/kawow/blob/main/manuscript/yrandomization.py).
 
 ---
 
 ## Manuscript
 
-The [`manuscript/`](manuscript/) folder contains the scripts that reproduce the figures and SI tables of *A Vanishing Partitioning Gap* (Miaz & Cousins); see [`manuscript/README.md`](manuscript/README.md).
+The [`manuscript/`](https://github.com/LucMiaz/kawow/tree/main/manuscript) folder contains the scripts that reproduce the figures and SI tables of *A Vanishing Partitioning Gap* (Miaz & Cousins); see [`manuscript/README.md`](https://github.com/LucMiaz/kawow/blob/main/manuscript/README.md).
 
 ---
 
-## Reference
+## References
 
-Naef, Rudolf, and William E. Acree, Jr. 2024. "Calculation of the Three Partition Coefficients logPow, logKoa and logKaw of Organic Molecules at Standard Conditions at Once by Means of a Generally Applicable Group-Additivity Method." *Liquids* 4, no. 1: 231-260. [10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
+Naef, R.; Acree, W. E. Calculation of the Three Partition Coefficients logPow, logKoa and logKaw of Organic Molecules at Standard Conditions at Once by Means of a Generally Applicable Group-Additivity Method. *Liquids* **2024**, 4 (1), 231–260. [doi:10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011)
 
-Arp, H.P.H. and Hale, S.E. 2023. "From Measured Partition Coefficients to the Prediction of Environmental Fate." Supplementary data: `vg2c00024_si_001` (ACS).
+Kelly, B. C.; Ikonomou, M. G.; Blair, J. D.; Morin, A. E.; Gobas, F. A. P. C. Food Web–Specific Biomagnification of Persistent Organic Pollutants. *Science* **2007**, 317 (5835), 236–239. [doi:10.1126/science.1138275](https://doi.org/10.1126/science.1138275)
 
-Lin, L.I.-K. 1989. "A Concordance Correlation Coefficient to Evaluate Reproducibility." *Biometrics* 45: 255-268. [10.2307/2532051](https://doi.org/10.2307/2532051)
+Mackay, D.; Arnot, J. A.; Gobas, F. A. P. C.; Powell, D. E. Mathematical Relationships between Metrics of Chemical Bioaccumulation in Fish. *Environ. Toxicol. Chem.* **2013**, 32 (7), 1459–1466. [doi:10.1002/etc.2205](https://doi.org/10.1002/etc.2205)
 
-Ly, A., Verhagen, A.J., and Wagenmakers, E.-J. 2015. "Harold Jeffreys's Default Bayes Factor for Testing Point Null Hypotheses from a Continuous Prior Distribution." *Journal of Mathematical Psychology* 28: 71-84. [10.1016/j.jmp.2015.06.004](https://doi.org/10.1016/j.jmp.2015.06.004)
+Neumann, M.; Schliebner, I. *Protecting the Sources of Our Drinking Water: The Criteria for Identifying PMT and vPvM Substances under EU Regulation REACH*; TEXTE 127/2019; German Environment Agency (UBA), 2019.
 
-Steiger, J.H. 1980. "Tests for Comparing Elements of a Correlation Matrix." *Psychological Bulletin* 87: 245-251. [10.1037/0033-2909.87.2.245](https://doi.org/10.1037/0033-2909.87.2.245)
+Arp, H. P. H.; Hale, S. E. *REACH: Improvement of Guidance and Methods for the Identification and Assessment of PMT/vPvM Substances*; TEXTE 126/2019; German Environment Agency (UBA), 2019.
 
-Chicco, D., Tötsch, N., and Jurman, G. 2021. "The Matthews Correlation Coefficient (MCC) Is More Reliable Than Balanced Accuracy." *BioData Mining* 14: 13. [10.1186/s13040-021-00244-z](https://doi.org/10.1186/s13040-021-00244-z)
+Arp, H. P. H.; Hale, S. E. Assessing the Persistence and Mobility of Organic Substances to Protect Freshwater Resources. *ACS Environ. Au* **2022**, 2 (6), 482–509. [doi:10.1021/acsenvironau.2c00024](https://doi.org/10.1021/acsenvironau.2c00024) (supplementary data `vg2c00024_si_001`)
+
+Commission Delegated Regulation (EU) 2023/707 amending Regulation (EC) No 1272/2008 as regards hazard classes and criteria for the classification, labelling and packaging of substances and mixtures. [ELI](http://data.europa.eu/eli/reg_del/2023/707/oj)
+
+Lin, L. I.-K. A Concordance Correlation Coefficient to Evaluate Reproducibility. *Biometrics* **1989**, 45, 255–268. [doi:10.2307/2532051](https://doi.org/10.2307/2532051)
+
+Ly, A.; Verhagen, A. J.; Wagenmakers, E.-J. Harold Jeffreys's Default Bayes Factor Hypothesis Tests. *J. Math. Psychol.* **2016**, 72, 19–32. [doi:10.1016/j.jmp.2015.06.004](https://doi.org/10.1016/j.jmp.2015.06.004)
+
+Steiger, J. H. Tests for Comparing Elements of a Correlation Matrix. *Psychol. Bull.* **1980**, 87, 245–251. [doi:10.1037/0033-2909.87.2.245](https://doi.org/10.1037/0033-2909.87.2.245)
+
+Chicco, D.; Tötsch, N.; Jurman, G. The Matthews Correlation Coefficient (MCC) Is More Reliable Than Balanced Accuracy. *BioData Mining* **2021**, 14, 13. [doi:10.1186/s13040-021-00244-z](https://doi.org/10.1186/s13040-021-00244-z)
 
 ## License
 

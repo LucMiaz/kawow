@@ -5,6 +5,8 @@
 - Added aquatic bioaccumulation flags (`is_B_aquatic`, `is_vB_aquatic`)
 - **Behaviour change:** `in_gap` (and `in_gap3`, `in_gap_bm`) now follows the benchmark article: neither M nor B by either route, bounded above by the aquatic B cutoff (logKow ≈ 4.6) instead of vB (5.0)
 - Corrected the README/quickstart description of the mobility proxy (Arp & Hale screening zones, not `logKow - 0.4`)
+- Updated the README and documentation: benchmark values from `tests/out/shared_fold_benchmark.csv` and `benchmark_metrics_5model.csv`, current outputs of the examples, 78-feature Crippen vector with six special groups, removed the obsolete regulatory F1 table, fixed the API reference (`NaefAcreeCrippenPartitionCalculator`, ensemble, PFASGroups RF/XGB/NN classes, `kawow.criteria`) and the Sphinx version
+- Added `manuscript/` with the scripts of the benchmark article
 
 ## 1.0.0 (2026-06-02)
 - renaming of models for clarity (breaking change)

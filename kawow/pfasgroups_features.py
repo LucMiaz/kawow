@@ -1,6 +1,6 @@
 """PFASGroups-based feature extraction for the kawow benchmark.
 
-Feature vector layout (N_FEATURES = 77, fixed size):
+Feature vector layout (N_FEATURES = 77, fixed size)::
 
   Part A: 11 molecule-level scalars (pure RDKit)
   Parts B+C+D (66 values): delegated to PFASGroups.extract_group_features
@@ -136,7 +136,8 @@ def compute_pfasgroups_features(mol: Chem.Mol) -> np.ndarray | None:
     Parts B–D — 66 features from PFASGroups.extract_group_features:
       See :class:`PFASGroups.GroupFeatureResult` and
       :func:`PFASGroups.extract_group_features` for the full specification.
-      :meth:`~PFASGroups.GroupFeatureResult.to_array` layout:
+      :meth:`~PFASGroups.GroupFeatureResult.to_array` layout::
+
         [11-13]  poly_counts        (poly_alkyl, poly_aryl, poly_cyclic)
         [14-28]  per_halogen_sizes  (g34_F … g44_H, 3 groups × 5 halogens)
         [29-76]  generic_groups     (g29 … g76, 48 entries)

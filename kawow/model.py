@@ -497,7 +497,7 @@ def fit(
 ) -> None:
     """
     Fit models on S01 (logKow) and S02 (logKoa) SDF files and save
-    coefficients to kawow/data/*.json.
+    coefficients to ``kawow/data/*.json``.
 
     Parameters
     ----------
@@ -716,7 +716,7 @@ def fit_mqg(
     logkoa_prop: str = "logKoa",
     fp_size: int = 64,
 ) -> None:
-    """Fit MQG-based models on S01/S02 and save to kawow/data/*.pkl."""
+    """Fit MQG-based models on S01/S02 and save to ``kawow/data/*.pkl``."""
     if not _MQG_AVAILABLE:
         raise ImportError(
             "MQG model requires the molecular_quantum_graph package (import name: mqg)."

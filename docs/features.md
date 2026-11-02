@@ -1,58 +1,48 @@
 # Feature engineering
 
-## Overview
+## Crippen feature vector
 
-Each molecule is encoded as a **77-dimensional feature vector**:
+`kawow.compute_features(mol)` returns a **78-dimensional feature vector**:
 
-- **Features 0-71**: Crippen atom-type counts (72 types)
-- **Features 72-76**: NaefAcree special groups (5 values)
+- **Features 0–71**: Crippen atom-type counts (72 types)
+- **Features 72–77**: special groups following Naef & Acree (2024) (6 values)
 
-## Crippen atom types
+It returns `None` for molecules with fewer than two backbone atoms (heavy atoms bound to at least two neighbours, hydrogens included), e.g. methane, water, CF₄ or SOCl₂; these molecules cannot be described by atom types or group contributions.
 
-The 72 atom types are taken directly from RDKit's `Crippen.txt` data file.
-Each atom type is identified by an ID string (e.g. `C1`, `N3`, `O12`) and a
-set of atom-centred SMARTS patterns.
+### Crippen atom types
 
-Atom assignment follows **first-match priority**: each heavy atom is assigned
-to the first atom type whose SMARTS matches it (in the order listed in
-`Crippen.txt`). This matches RDKit's `Crippen._pyGetAtomContribs` logic.
+The 72 atom types are taken from RDKit's `Crippen.txt` data file. Each atom type is identified by an ID (e.g. `C1`, `N3`, `O12`) and a set of atom-centred SMARTS patterns.
 
-The Crippen *logP contributions* (MR and logP weights) are **not used** —
-only the SMARTS patterns are used to count atoms. New Ridge regression
-coefficients are fitted on the Naef & Acree (2024) experimental datasets.
+Each atom is assigned to the first atom type whose SMARTS matches it, in the order of `Crippen.txt`, as in RDKit's `Crippen._pyGetAtomContribs`. Only the SMARTS patterns are used: RDKit's logP and MR contributions are not, and the ridge coefficients are fitted on the Naef & Acree (2024) experimental datasets.
 
-## Special groups
+### Special groups
 
-| Feature label     | Description                                                     |
-|-------------------|-----------------------------------------------------------------|
-| `SG_HB_INTRAMOL`  | Count of intramolecular H-bond donor/acceptor pairs within 5 bonds |
-| `SG_ALKANE`       | 1 if the molecule is a pure saturated hydrocarbon (C, H only, no rings) |
-| `SG_UNSAT_HC`     | 1 if the molecule is a pure unsaturated acyclic hydrocarbon    |
-| `SG_EXTRA_COOH`   | Number of −COOH groups beyond the first                        |
-| `SG_ENDOCYCLIC_CC`| Count of endocyclic C−C single bonds                           |
+| Feature label     | Description |
+|-------------------|-------------|
+| `SG_HB_INTRAMOL`  | Number of intramolecular H-bond donor/acceptor atom pairs within five bonds |
+| `SG_ALKANE`       | Number of carbon atoms if the molecule is a pure saturated acyclic hydrocarbon, 0 otherwise |
+| `SG_UNSAT_HC`     | Number of carbon atoms if the molecule is a pure unsaturated acyclic hydrocarbon, 0 otherwise |
+| `SG_EXTRA_COOH`   | Number of carboxylic-acid groups beyond the first |
+| `SG_EXTRA_OH`     | Number of hydroxyl groups beyond the first |
+| `SG_ENDOCYCLIC_CC`| Number of endocyclic C–C single bonds |
 
-These special groups capture structural features that the atom-type counts
-alone cannot represent (conformational H-bonding, branching geometry, etc.),
-following Section 3.4 of Naef & Acree (2024).
+These groups capture structural features that atom-type counts alone cannot represent (intramolecular H-bonding, hydrocarbon chain length, ring strain), following Naef & Acree (2024).
 
-## Accessing the feature vector
+### Accessing the feature vector
 
 ```python
 from rdkit import Chem
 from kawow import compute_features, FEATURE_LABELS, N_FEATURES
 
-print("Number of features:", N_FEATURES)    # 77
-print("Labels:", FEATURE_LABELS[:5], "...")
+print("Number of features:", N_FEATURES)    # 78
 
-mol = Chem.MolFromSmiles("OC(=O)CC(=O)O")  # malonic acid
-vec = compute_features(mol)
-
+vec = compute_features(Chem.MolFromSmiles("OC(=O)CC(=O)O"))  # malonic acid
 for label, val in zip(FEATURE_LABELS, vec):
     if val != 0:
         print(f"  {label}: {val:.0f}")
 ```
 
-## Inspecting atom-type patterns
+### Inspecting atom-type patterns
 
 ```python
 from kawow.atom_types import CRIPPEN_PATTS, CRIPPEN_ORDER
@@ -64,13 +54,15 @@ for smarts, _ in CRIPPEN_PATTS["C18"]:
 
 ---
 
+## Naef & Acree group counts
+
+The `naef_crippen` model, and the models that combine it with MQG or PFASGroups descriptors, also use the number of matches of each Naef & Acree (2024) group, one vector per endpoint (the log*K*ow and log*K*oa parameter tables differ). Each atom is matched against the SMARTS of the paper's supplementary tables, optionally conditioned on the number of conjugated π-neighbour moieties at the matched centre. The `naef` model sums the tabulated contributions of these groups directly, without fitting.
+
+---
+
 ## PFASGroups features (77-dimensional)
 
-The `pfasgroups`, `pfasgroups_crippen`, `pfasgroups_naef`, and
-`pfasgroups_naef_crippen` models use a PFASGroups 77-dimensional
-feature vector computed by `kawow.pfasgroups_features.compute_pfasgroups_features`.
-It is designed to capture the halogenated structural character relevant for
-partitioning in fluorinated and chlorinated compounds.
+The `pfasgroups*` models use a 77-dimensional PFASGroups vector computed by `kawow.pfasgroups_features.compute_pfasgroups_features`. It describes the halogenated structure relevant for the partitioning of fluorinated and chlorinated compounds.
 
 | Part | Indices | Description |
 |------|---------|-------------|
@@ -79,9 +71,7 @@ partitioning in fluorinated and chlorinated compounds.
 | C | 14–28 | 15 per-halogen maximum component sizes for perhalogenated groups (IDs 34, 37, 44) × 5 halogens (F, Cl, Br, I, H) |
 | D | 29–76 | 48 bag-of-groups counts (generic SMARTS groups, IDs 29–76) |
 
-Parts B–D are computed using `PFASGroups.extract_group_features`.
-
-### Accessing PFASGroups features
+Parts B–D are computed with `PFASGroups.extract_group_features`.
 
 ```python
 from rdkit import Chem
@@ -89,21 +79,15 @@ from kawow.pfasgroups_features import compute_pfasgroups_features, N_FEATURES
 
 print("PFASGroups feature vector size:", N_FEATURES)   # 77
 
-mol = Chem.MolFromSmiles("FC(F)(F)C(F)(F)C(F)(F)F")   # perfluorobutane
-vec = compute_pfasgroups_features(mol)
-
+vec = compute_pfasgroups_features(Chem.MolFromSmiles("FC(F)(F)C(F)(F)C(F)(F)F"))   # perfluorobutane
 if vec is not None:
-    print("Part A (mol scalars):", vec[:11])
-    print("Part D (group counts, non-zero):", [(i, v) for i, v in enumerate(vec[29:], 29) if v > 0])
+    print("Part A (molecule scalars):", vec[:11])
+    print("Part D (non-zero group counts):", [(i, v) for i, v in enumerate(vec[29:], 29) if v > 0])
 ```
 
-Model feature composition:
+Feature composition of the models:
 
-- `pfasgroups`: PFASGroups only (77).
-- `pfasgroups_crippen`: PFASGroups (77) + Crippen atom types (77) = 154.
-- `pfasgroups_naef`: PFASGroups (77) + Naef group-count feature vector.
-- `pfasgroups_naef_crippen`: PFASGroups (77) + Naef + Crippen atom types (77).
-
-This extends PFASGroups descriptors with the same Naef/Crippen feature blocks
-used by the `naef_crippen` and `naef_crippen_mqg` families.
-
+- `pfasgroups`: PFASGroups (77).
+- `pfasgroups_crippen`: PFASGroups (77) + Crippen feature vector (78).
+- `pfasgroups_naef`: PFASGroups (77) + Naef & Acree group counts.
+- `pfasgroups_naef_crippen` (and its `_rf`, `_xgb`, `_nn` variants): PFASGroups (77) + Naef & Acree group counts + Crippen feature vector (78).

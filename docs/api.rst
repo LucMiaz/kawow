@@ -1,55 +1,58 @@
 API Reference
 =============
 
-.. automodule:: kawow
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Running models
+--------------
 
-PartitionCalculator
+.. autofunction:: kawow.run_models
+
+Regulatory criteria
 -------------------
+
+.. automodule:: kawow.criteria
+   :members:
+
+Calculators
+-----------
 
 .. autoclass:: kawow.PartitionCalculator
    :members:
-   :undoc-members:
    :show-inheritance:
-
-MQGPartitionCalculator
-----------------------
-
-.. autoclass:: kawow.MQGPartitionCalculator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-NaefAcreePartitionCalculator
-----------------------------
 
 .. autoclass:: kawow.NaefAcreePartitionCalculator
    :members:
-   :undoc-members:
    :show-inheritance:
 
-NaefAcreeCrippenMixedPartitionCalculator
-----------------------------------------
-
-.. autoclass:: kawow.NaefAcreeCrippenMixedPartitionCalculator
+.. autoclass:: kawow.NaefAcreeCrippenPartitionCalculator
    :members:
-   :undoc-members:
    :show-inheritance:
 
-PFASGroupsPartitionCalculator
-------------------------------
+.. autoclass:: kawow.MQGPartitionCalculator
+   :members:
+   :show-inheritance:
+
+.. autoclass:: kawow.EnsemblePartitionCalculator
+   :members:
+   :show-inheritance:
 
 .. autoclass:: kawow.PFASGroupsPartitionCalculator
    :members:
-   :undoc-members:
    :show-inheritance:
 
-Module-level functions
-----------------------
+.. autoclass:: kawow.PFASGroupsRFPartitionCalculator
+   :members:
+   :show-inheritance:
 
-.. autofunction:: kawow.run_models
+.. autoclass:: kawow.PFASGroupsXGBPartitionCalculator
+   :members:
+   :show-inheritance:
+
+.. autoclass:: kawow.PFASGroupsNNPartitionCalculator
+   :members:
+   :show-inheritance:
+
+Fitting, features and input
+---------------------------
 
 .. autofunction:: kawow.fit
 
@@ -60,29 +63,20 @@ Module-level functions
 .. autofunction:: kawow.parse_input
 
 kawow.atom_types
---------------------
+----------------
 
 .. automodule:: kawow.atom_types
    :members:
    :undoc-members:
 
-kawow.features
-------------------
+kawow.pfasgroups_features
+-------------------------
 
-.. automodule:: kawow.features
+.. automodule:: kawow.pfasgroups_features
    :members:
-   :undoc-members:
 
-kawow.io
-------------
+kawow.metrics
+-------------
 
-.. automodule:: kawow.io
+.. automodule:: kawow.metrics
    :members:
-   :undoc-members:
-
-kawow.model
----------------
-
-.. automodule:: kawow.model
-   :members:
-   :undoc-members:

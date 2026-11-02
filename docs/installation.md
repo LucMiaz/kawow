@@ -14,6 +14,15 @@ cd kawow
 pip install -e ".[dev]"
 ```
 
+### Optional dependencies
+
+```bash
+pip install "kawow[ml]"      # XGBoost and Keras: pfasgroups_naef_crippen_xgb and _nn models
+pip install "kawow[docs]"    # Sphinx, to build this documentation
+```
+
+The `mqg`, `naef_mqg` and `crippen_mqg` models also need the `molecular_quantum_graph` package (import name `mqg`).
+
 ### Requirements
 
 - Python ≥ 3.10

@@ -1,40 +1,35 @@
 # Quick start
 
-## Running multiple models at once
+## Running several models at once
 
-The easiest entry point is `run_models()`, which runs any combination of the
-four available models and returns aligned per-molecule results with B/vB,
-M/vM, and regulatory-gap flags already computed:
+`run_models()` runs any combination of models and returns aligned per-molecule results with the B/vB, M/vM and regulatory-gap flags already computed:
 
 ```python
 import kawow
 
 results = kawow.run_models(
     ["CCCCO", "c1ccccc1", "OC(=O)c1ccccc1"],
-    models=["crippen", "naef_crippen"],   # omit to run all four
+    models=["crippen", "naef_crippen"],   # omit to run all available models
 )
 
 for row in results:
     kow = row["models"]["crippen"]
     mix = row["models"]["naef_crippen"]
     print(
-        f"{row['smiles']:35s}  "
-        f"crippen logKow={kow['logKow']:+.2f}  {kow['b_class']}/{kow['m_class']}"
-        f"  |  naef_crippen logKow={mix['logKow']:+.2f}  {mix['b_class']}/{mix['m_class']}"
-        f"  gaps={kow.get('gap_labels', [])}"
+        f"{row['smiles']:20s}"
+        f"crippen logKow={kow['logKow']:+.2f} {kow['b_class']}/{kow['m_class']}  |  "
+        f"naef_crippen logKow={mix['logKow']:+.2f} {mix['b_class']}/{mix['m_class']}  "
+        f"in gap: {mix['in_gap']}"
     )
 ```
 
-Available model keys: `"crippen"`, `"naef"`, `"naef_crippen"`, `"mqg"`,
-`"pfasgroups"`, `"pfasgroups_cripppen"`, `"pfasgroups_naef"`, `"pfasgroups_naef_cripppen"`,
-`"pfasgroups_naef_cripppen_rf"`, `"pfasgroups_naef_cripppen_xgb"`, `"pfasgroups_naef_cripppen_nn"`.
+Available model keys: `"crippen"`, `"naef"`, `"naef_crippen"`, `"mqg"`, `"naef_mqg"`, `"crippen_mqg"`, `"pfasgroups"`, `"pfasgroups_crippen"`, `"pfasgroups_naef"`, `"pfasgroups_naef_crippen"`, `"pfasgroups_naef_crippen_rf"`, `"pfasgroups_naef_crippen_xgb"`, `"pfasgroups_naef_crippen_nn"`. The MQG models need the `molecular_quantum_graph` package, and the `_xgb` and `_nn` models need `pip install "kawow[ml]"`; a model that cannot be loaded returns `status="error"` for every molecule.
 
+## Classification criteria
 
-### Flagging criteria
+Each model result contains the classification of the predicted values:
 
-Each model result dictionary includes:
-
-**Bioaccumulation** (following doi:10.1126/science.1138275):
+**Bioaccumulation**, air-breathing organisms (Kelly et al. 2007, doi:10.1126/science.1138275):
 
 | Key | Value | Condition |
 |-----|-------|-----------|
@@ -42,25 +37,27 @@ Each model result dictionary includes:
 | `b_class` | `"B"` | `logKoa ≥ 6` **and** `logKow ≥ 2` |
 | `b_class` | `"non-B"` | otherwise |
 
-**Aquatic bioaccumulation** (`is_B_aquatic`, `is_vB_aquatic`) — BCF ≈ 0.05·Kow: B at `logKow > 4.6` (BCF > 2 000), vB at `logKow > 5.0` (BCF > 5 000).
+**Aquatic bioaccumulation** (`is_B_aquatic`, `is_vB_aquatic`), from BCF ≈ 0.05·Kow: B at `logKow > 4.6` (BCF > 2 000), vB at `logKow > 5.0` (BCF > 5 000).
 
-**Mobility** — defined on log*K*oc and applied through a log*K*ow screening proxy. Two presets are available through the `criteria` argument of `run_models()` (`"uba"` by default, or `"clp"`), see `kawow/criteria.py`:
+**Mobility** is defined on log*K*oc and applied through a log*K*ow screening proxy. Two presets are available through the `criteria` argument of `run_models()` (`"uba"` by default), see `kawow/criteria.py`:
 
 | Preset | M (log*K*oc) | vM (log*K*oc) | M (log*K*ow) | Potential M/vM (log*K*ow) | vM (log*K*ow) |
 |--------|-------------|---------------|--------------|---------------------------|---------------|
 | `uba` (Neumann & Schliebner 2019; Arp & Hale 2019 screening zones) | < 4.0 | < 3.0 | ≤ 4.5 | 3.5–4.5 | ≤ 2.5 |
 | `clp` (Delegated Regulation (EU) 2023/707) | < 3.0 | < 2.0 | ≤ 3.5 | 2.5–3.5 | ≤ 1.5 |
 
-The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-unit as the log*K*oc cutoffs. Individual thresholds can be changed with `kawow.get_criteria("clp", vm_logkow_threshold=2.5)`.
+`m_class` is `"vM"`, `"Potential M/vM"`, `"M"` or `"non-M"`. The CLP log*K*ow cutoffs are the Arp & Hale zones shifted by the same 1.0 log-unit as the log*K*oc cutoffs. Single thresholds can be changed with `kawow.get_criteria("clp", vm_logkow_threshold=2.5)`, and the result passed as `criteria=`.
 
 **Regulatory gaps**:
 
 | Key | Condition |
 |-----|-----------|
-| `in_gap1` | between the vM cutoff and `logKow < 5.0` |
+| `in_gap` (= `in_gap3`, `in_gap_bm`) | neither M nor B by either route: `logKow` above the M cutoff and below the aquatic B cutoff (≈ 4.6), with `logKoa < 6` |
+| `in_gap1` | `logKow` between the vM cutoff and 5.0 (neither vM nor vB) |
 | `in_gap2` | `logKow` above the M cutoff and `logKoa < 6` |
-| `in_gap` (= `in_gap3`, `in_gap_bm`) | neither M nor B by either route: `logKow` above the M cutoff and below the aquatic B cutoff (≈ 4.6), `logKoa < 6` |
-| `gap_labels` | list of applicable gap strings for `in_gap1`–`in_gap3` |
+| `gap_labels` | list of the gaps that apply, e.g. `["Gap 1", "Gap 3"]` |
+
+The thresholds used are returned in `criteria` and `thresholds`.
 
 ---
 
@@ -71,78 +68,52 @@ from kawow import PartitionCalculator
 
 calc = PartitionCalculator()
 
-# Single SMILES string
-result = calc.predict("CCCCO")      # 1-butanol
-print(result)
-# {'logKow': 0.88, 'logKoa': 4.12, 'logKaw': -3.24, 'status': 'ok', 'name': '...'}
+calc.predict("CCCCO")      # 1-butanol
+# {'logKow': 1.095, 'logKoa': 4.368, 'logKaw': -3.273, 'status': 'ok', 'name': 'CCCCO', 'smiles': 'CCCCO'}
 ```
 
-The returned dictionary always contains:
+The returned dictionary contains:
 
 | Key      | Type  | Description                                 |
 |----------|-------|---------------------------------------------|
 | `logKow` | float | Octanol-water partition coefficient (log)   |
 | `logKoa` | float | Octanol-air partition coefficient (log)     |
-| `logKaw` | float | Air-water partition coefficient (log), = logKow − logKoa |
-| `status` | str   | `"ok"` or `"error"`                        |
-| `name`   | str   | Molecule name (from input, if available)    |
-| `error`  | str   | Error description (only when status="error") |
+| `logKaw` | float | Air-water partition coefficient (log), logKow − logKoa |
+| `status` | str   | `"ok"`, or `"error"` when no feature vector can be built (fewer than two backbone atoms) |
+| `name`   | str   | Molecule name from the input (the SMILES otherwise) |
+| `smiles` | str   | Input SMILES                                |
+
+Inputs that RDKit cannot parse are skipped, so the result for an invalid SMILES is an empty list.
 
 ## Batch prediction from a list of SMILES
 
 ```python
-smiles = ["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"]
-results = calc.predict_batch(smiles)
-
-for r in results:
+for r in calc.predict_batch(["c1ccccc1", "CCCCCCCCCC", "OC(=O)c1ccccc1"]):
     print(f"{r['smiles']:30s}  logKow={r['logKow']:+.2f}")
 ```
 
-## Predict from an SDF file
+## Other input formats
 
 ```python
-results = calc.predict("compounds.sdf")   # list[dict]
-```
+calc.predict("compounds.sdf")                                  # SDF file; _Name or "Alias name" as name
+calc.predict("InChI=1S/C4H10O/c1-2-3-4-5/h5H,2-4H2,1H3")      # InChI
+calc.predict("CCCCO  1-butanol\nc1ccccc1  benzene")           # one "SMILES name" per line
 
-The SDF `_Name` field (or `Alias name` property) is used as the molecule name.
-
-## Predict from an InChI string
-
-```python
-result = calc.predict("InChI=1S/C4H10O/c1-2-3-4-5/h5H,2-4H2,1H3")
-```
-
-## Predict from a multi-line SMILES string
-
-```python
-smiles_block = """
-CCCCO  1-butanol
-c1ccccc1  benzene
-"""
-results = calc.predict(smiles_block)  # list[dict]
-```
-
-## Mixed input list
-
-```python
 from rdkit import Chem
-mol = Chem.MolFromSmiles("c1ccccc1")
-
-results = calc.predict(["CCCCO", mol, "InChI=1S/..."])
+calc.predict(["CCCCO", Chem.MolFromSmiles("c1ccccc1")])        # mixed list
 ```
+
+Multiple molecules return a list of dictionaries.
 
 ## Feature vectors
 
-Access the underlying 77-dimensional feature vector:
+The Crippen feature vector has 78 entries (72 atom types and six special groups, see [Features](features.md)):
 
 ```python
 from rdkit import Chem
 from kawow import compute_features, FEATURE_LABELS
 
-mol = Chem.MolFromSmiles("CCCCO")
-vec = compute_features(mol)    # numpy array, shape (77,)
-
-# Print non-zero features
+vec = compute_features(Chem.MolFromSmiles("CCCCO"))   # numpy array, shape (78,)
 for label, value in zip(FEATURE_LABELS, vec):
     if value != 0:
         print(f"  {label}: {value:.0f}")
@@ -150,8 +121,7 @@ for label, value in zip(FEATURE_LABELS, vec):
 
 ## Re-fitting the model
 
-If you have your own SDF training data, you can re-fit the Ridge regression
-models and save updated coefficients:
+With your own SDF training data, the ridge models of `PartitionCalculator` can be re-fitted:
 
 ```python
 import kawow
@@ -159,62 +129,22 @@ import kawow
 kawow.fit(
     sdf_logkow="my_logkow.sdf",
     sdf_logkoa="my_logkoa.sdf",
-    logkow_prop="logP",      # SDF property tag containing logKow values
-    logkoa_prop="logKoa",    # SDF property tag containing logKoa values
+    logkow_prop="logP",      # SDF property holding logKow
+    logkoa_prop="logKoa",    # SDF property holding logKoa
 )
-# Reload the calculator to use the new coefficients
-calc = kawow.PartitionCalculator()
+calc = kawow.PartitionCalculator()   # reload to use the new coefficients
 ```
 
-The fitted coefficients are saved as JSON files inside the package directory
-(`kawow/data/logkow_model.json` and `logkoa_model.json`).
+The coefficients are written to `kawow/data/logkow_model.json` and `logkoa_model.json` inside the package directory, replacing the shipped ones.
 
 ## Model metadata
 
 ```python
-info = calc.model_info
-print(info["logKow"])
-# {
-#   'target': 'logKow', 'n_train': 3332, 'alpha': 37.28,
-#   'r2_cv': 0.8980, 'rmse_cv': 0.6643, 'intercept': -0.412,
-#   'ccc_cv': 0.9462,            # Lin's concordance correlation coefficient
-#   'nrmse_sd_cv': 0.3194,       # RMSE / σ(logKow_train)
-#   'nrmse_range_cv': 0.0388,    # RMSE / range(logKow_train)
-#   'bf10_log10_cv': '>10^300',  # log₁₀ Bayes factor (decisive evidence for ρ ≠ 0)
-#   'r_ci95_cv': [0.944, 0.951], # 95 % Fisher-z CI on cross-validated Pearson ρ
-# }
+calc.model_info["logKow"]
+# {'target': 'logKow', 'n_train': 3234, 'alpha': 51.79, 'r2_cv': 0.898, 'rmse_cv': 0.6643,
+#  'intercept': 0.399, ...}  (plus the fitted coefficients)
 ```
 
----
+## Benchmark performance
 
-## Regulatory classification performance
-
-kawow evaluates the same binary flags as `run_models()` against experimental benchmark data to produce F1 scores. Evaluation uses 1 083–1 102 molecules that have paired experimental log*K*ow (S01) and log*K*oa (S02) values.
-
-### F1 scores
-
-| Label | Condition | n (+) | `crippen` | `naef` | `naef_crippen` | `naef_mqg` | `crippen_mqg` | `mqg` |
-|-------|-----------|------:|--------:|---------:|---------------:|-----------:|--------------:|------:|
-| G1 | 3.5 < log*K*ow < 5.0 | 178 | 0.67 | 0.74 | **0.77** | **0.77** | 0.69 | 0.55 |
-| G2 | log*K*ow > 4.5 and log*K*oa < 6 | 24 | 0.56 | 0.54 | 0.62 | **0.63** | 0.58 | 0.15 |
-| G3 | 4.5 < log*K*ow < 5.0 and log*K*oa < 6 | 11 | 0.00 | **0.27** | 0.13 | 0.13 | 0.00 | — |
-| M | log*K*oc_est ≤ 4.5 | 797 | 0.97 | 0.98 | **0.98** | 0.98 | 0.97 | 0.95 |
-| vM | log*K*oc_est ≤ 3.5 | 677 | 0.95 | 0.96 | **0.97** | **0.97** | 0.95 | 0.95 |
-| B | log*K*ow ≥ 2 and log*K*oa ≥ 6 | 503 | 0.94 | 0.94 | **0.96** | 0.95 | 0.95 | 0.94 |
-| vB | log*K*ow ≥ 5 and log*K*oa ≥ 6 | 266 | 0.92 | 0.93 | 0.93 | **0.94** | 0.93 | 0.79 |
-
-n (+): number of true-positive molecules in the benchmark. — = model makes 0 positive predictions (precision undefined). `naef_mqg` and `crippen_mqg` use `EnsemblePartitionCalculator`.
-
-### Precision and recall — `naef_crippen` (best overall)
-
-| Label | Precision | Recall | F1 |
-|-------|----------:|-------:|---:|
-| G1 | 0.76 | 0.78 | **0.77** |
-| G2 | 0.80 | 0.50 | 0.62 |
-| G3 | 0.20 | 0.09 | 0.13 |
-| M  | 0.97 | 1.00 | **0.98** |
-| vM | 0.95 | 0.99 | **0.97** |
-| B  | 0.96 | 0.97 | **0.96** |
-| vB | 0.99 | 0.89 | 0.93 |
-
-G3 (only 11 true positives) is the hardest class — a compound must be simultaneously in Gap 1 *and* Gap 2, so the base rate is very low (~1 %) and boundary errors dominate.
+Cross-validated performance of all models, including classification metrics at the regulatory thresholds, is summarised in the README and stored in `tests/out/shared_fold_benchmark.csv` and `tests/out/benchmark_metrics_5model.csv`.
