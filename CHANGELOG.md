@@ -4,6 +4,13 @@ All notable changes to kawow are listed here, newest first. Versions follow
 [semantic versioning](https://semver.org/); dates are those of the version bump
 in `pyproject.toml`.
 
+## 1.1.1 (2026-11-12)
+- **Invalid inputs are reported, not dropped.** A SMILES or InChI that RDKit cannot parse now gives a row with `status="error"` in its position, in `run_models()` and every calculator's `predict()`. Before, it was skipped silently: `run_models()` returned fewer rows than inputs, `predict()` on a list of two returned a single dict, and `predict()` on one invalid string returned `[]`. `kawow.io.parse_input()` takes `keep_invalid=True` for this.
+- Importing kawow no longer silences RDKit for the whole process (`RDLogger.DisableLog("rdApp.*")` in `smarts_model`).
+- Importing kawow no longer puts `../../PFASGroups` first on `sys.path`; that sibling checkout is only used when PFASGroups is not installed.
+- `kawow.__version__` is read from the package metadata.
+- Changelog moved to `CHANGELOG.md` at the repository root.
+
 ## 1.1.0 (2026-10-24)
 - `pandas` is now a core dependency: `kawow.smarts_model` imports it at module level, so `import kawow` (and the Read the Docs build) failed without it
 - Added `kawow.criteria` with two regulatory presets, `"uba"` (default, M as logKoc < 4.0) and `"clp"` (EU CLP Regulation, M as logKoc < 3.0, vM as logKoc < 2.0), and `get_criteria()` for custom thresholds

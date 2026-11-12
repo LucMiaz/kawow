@@ -28,7 +28,12 @@ from .criteria import CRITERIA, Criteria, get_criteria
 from .features import compute_features
 from .atom_types import FEATURE_LABELS, N_FEATURES
 
-__version__ = "1.1.0"
+try:
+    # Single source of truth: the version in pyproject.toml.
+    from importlib.metadata import PackageNotFoundError as _PNF, version as _version
+    __version__ = _version("kawow")
+except _PNF:  # imported from a source tree that was never installed
+    __version__ = "unknown"
 __all__ = [
     "PartitionCalculator",
     "MQGPartitionCalculator",
