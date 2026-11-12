@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.abspath(".."))
 # -- Project information -------------------------------------------------------
 project = "Kawow"
 author = "Luc Miaz"
-release = "0.1.0"
-copyright = "2025, Luc Miaz"
+from kawow import __version__ as release  # noqa: E402
+copyright = "2025-2026, Luc Miaz"
 
 # -- General configuration ----------------------------------------------------
 extensions = [
@@ -44,7 +44,6 @@ source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 
 # -- Options for HTML output --------------------------------------------------
 html_theme = "sphinx_rtd_theme"
-html_static_path = ["_static"]
 html_theme_options = {
     "navigation_depth": 3,
     "titles_only": False,

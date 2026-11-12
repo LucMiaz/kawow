@@ -1,6 +1,6 @@
 """PFASGroups-based feature extraction for the kawow benchmark.
 
-Feature vector layout (N_FEATURES = 77, fixed size):
+Feature vector layout (N_FEATURES = 77, fixed size)::
 
   Part A: 11 molecule-level scalars (pure RDKit)
   Parts B+C+D (66 values): delegated to PFASGroups.extract_group_features
@@ -21,11 +21,10 @@ import numpy as np
 from rdkit import Chem
 
 # ---------------------------------------------------------------------------
-# PFASGroups import (sibling repo: ../../PFASGroups)
+# PFASGroups import: the installed package, or else a sibling checkout
+# (../../PFASGroups next to the kawow repository, for development)
 # ---------------------------------------------------------------------------
 _PFASGROUPS_PATH = Path(__file__).resolve().parents[2] / "PFASGroups"
-if str(_PFASGROUPS_PATH) not in sys.path:
-    sys.path.insert(0, str(_PFASGROUPS_PATH))
 
 _PFASGROUPS_AVAILABLE = False
 _PFASGROUPS_IMPORT_ERROR: str = ""
@@ -34,6 +33,17 @@ try:
     _PFASGROUPS_AVAILABLE = True
 except ImportError as _exc:  # pragma: no cover
     _PFASGROUPS_IMPORT_ERROR = str(_exc)
+    # Only fall back to the sibling checkout when the package is not installed,
+    # and append rather than prepend: putting it first on sys.path used to
+    # shadow the installed PFASGroups (and any module of the same name in the
+    # parent folder) for the whole process.
+    if (_PFASGROUPS_PATH / "PFASGroups").is_dir() and str(_PFASGROUPS_PATH) not in sys.path:
+        sys.path.append(str(_PFASGROUPS_PATH))
+        try:
+            from PFASGroups.group_features import extract_group_features as _extract_group_features  # type: ignore[import]
+            _PFASGROUPS_AVAILABLE = True
+        except ImportError as _exc2:
+            _PFASGROUPS_IMPORT_ERROR = str(_exc2)
 
 
 # ---------------------------------------------------------------------------
@@ -136,15 +146,16 @@ def compute_pfasgroups_features(mol: Chem.Mol) -> np.ndarray | None:
     Parts B–D — 66 features from PFASGroups.extract_group_features:
       See :class:`PFASGroups.GroupFeatureResult` and
       :func:`PFASGroups.extract_group_features` for the full specification.
-      :meth:`~PFASGroups.GroupFeatureResult.to_array` layout:
+      :meth:`~PFASGroups.GroupFeatureResult.to_array` layout::
+
         [11-13]  poly_counts        (poly_alkyl, poly_aryl, poly_cyclic)
         [14-28]  per_halogen_sizes  (g34_F … g44_H, 3 groups × 5 halogens)
         [29-76]  generic_groups     (g29 … g76, 48 entries)
     """
     if not _PFASGROUPS_AVAILABLE:
         raise ImportError(
-            f"PFASGroups package not found at '{_PFASGROUPS_PATH}'. "
-            f"Original import error: {_PFASGROUPS_IMPORT_ERROR}"
+            "The pfasgroups* models need the PFASGroups package "
+            f"(pip install PFASGroups). Import error: {_PFASGROUPS_IMPORT_ERROR}"
         )
 
     try:

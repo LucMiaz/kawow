@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import pickle
 import warnings
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -339,7 +339,7 @@ def run_models(
         except Exception as exc:
             init_errors[model_name] = str(exc)
 
-    pairs = parse_input(inp, fmt=fmt)
+    pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
     out_rows: list[dict[str, Any]] = []
 
     for mol, name in pairs:
@@ -356,6 +356,15 @@ def run_models(
             "models": {},
             "ok": False,
         }
+
+        if mol is None:   # unparseable SMILES/InChI: report it in its row
+            for model_name in selected:
+                row["models"][model_name] = {
+                    "model": model_name, "status": "error",
+                    "error": _INVALID_INPUT_MESSAGE, "ok": False,
+                }
+            out_rows.append(row)
+            continue
 
         for model_name in selected:
             if model_name in init_errors:
@@ -398,6 +407,14 @@ def run_models(
     return out_rows
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
+_INVALID_INPUT_MESSAGE = "invalid SMILES or InChI"
+
+
+def _invalid_input_result() -> dict:
+    """Prediction for an input RDKit could not parse; keeps outputs aligned with inputs."""
+    return {"status": "error", "error": _INVALID_INPUT_MESSAGE}
+
 
 def _build_Xy(sdf_path: str | Path, value_prop: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Load SDF, compute features, return (X, y, names). Skips failures."""
@@ -497,7 +514,7 @@ def fit(
 ) -> None:
     """
     Fit models on S01 (logKow) and S02 (logKoa) SDF files and save
-    coefficients to kawow/data/*.json.
+    coefficients to ``kawow/data/*.json``.
 
     Parameters
     ----------
@@ -716,7 +733,7 @@ def fit_mqg(
     logkoa_prop: str = "logKoa",
     fp_size: int = 64,
 ) -> None:
-    """Fit MQG-based models on S01/S02 and save to kawow/data/*.pkl."""
+    """Fit MQG-based models on S01/S02 and save to ``kawow/data/*.pkl``."""
     if not _MQG_AVAILABLE:
         raise ImportError(
             "MQG model requires the molecular_quantum_graph package (import name: mqg)."
@@ -744,6 +761,25 @@ def _load_pickle(path: Path) -> dict:
 
 # ── Naef group-count feature helpers (used by ensemble models) ────────────────
 
+def _resolve_param_file(path: str | Path) -> Path:
+    """Locate a Naef parameter CSV recorded in a model pickle.
+
+    The ensemble pickles store the path the CSV had when the model was fitted
+    (an absolute Windows path for the shipped models), which does not exist on
+    other machines. If that path is missing, use the file of the same name in
+    kawow's data directory. ``PureWindowsPath`` splits both Windows and POSIX
+    paths, so the name is found whichever system wrote the pickle.
+    """
+    p = Path(path)
+    if p.exists():
+        return p
+    local = DATA_DIR / PureWindowsPath(str(path)).name
+    if local.exists():
+        return local
+    raise FileNotFoundError(
+        f"Naef parameter file not found: {path} (nor {local})")
+
+
 def _compile_naef_patterns(param_csv_path: str | Path) -> list:
     """Compile a Naef parameter CSV into a list of (smarts_mol, pi, fnc) tuples.
 
@@ -754,7 +790,7 @@ def _compile_naef_patterns(param_csv_path: str | Path) -> list:
     import pandas as pd
     from . import smarts_model as _sm
 
-    df = pd.read_csv(param_csv_path)
+    df = pd.read_csv(_resolve_param_file(param_csv_path))
     patterns: list = []
     for _, row in df.iterrows():
         if row["Atom Type"] == "Const":
@@ -907,14 +943,14 @@ class PartitionCalculator:
         Each dict has keys: logKow, logKoa, logKaw, status[, error, name].
         """
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             try:
                 r["smiles"] = mol.GetProp("_SMILES") if mol.HasProp("_SMILES") else ""
-            except Exception:
+            except Exception:  # mol is None (invalid input) or has no such prop
                 pass
             results.append(r)
         if len(results) == 1:
@@ -1013,10 +1049,10 @@ class MQGPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1121,10 +1157,10 @@ class EnsemblePartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1255,10 +1291,10 @@ class PFASGroupsPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1359,10 +1395,10 @@ class PFASGroupsRFPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results
@@ -1442,10 +1478,10 @@ class PFASGroupsXGBPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results
@@ -1535,10 +1571,10 @@ class PFASGroupsNNPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results

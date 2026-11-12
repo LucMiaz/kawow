@@ -18,7 +18,7 @@ from rdkit import Chem
 from rdkit.Chem.inchi import MolFromInchi
 
 
-def _from_smiles(s: str, name: str = "") -> tuple | None:
+def _from_smiles(s: str, name: str = "", keep_invalid: bool = False) -> tuple | None:
     s = s.strip()
     if not s or s.startswith("#"):
         return None
@@ -28,19 +28,21 @@ def _from_smiles(s: str, name: str = "") -> tuple | None:
     label = parts[1].strip() if len(parts) > 1 else name
     mol = Chem.MolFromSmiles(smi)
     if mol is None:
-        return None
+        # (None, label) keeps the input's position, so predictions stay
+        # aligned with the inputs and the failure is reported.
+        return (None, label or smi) if keep_invalid else None
     mol.SetProp("_Name", label or smi)
     mol.SetProp("_SMILES", smi)
     return mol, label or smi
 
 
-def _from_inchi(s: str, name: str = "") -> tuple | None:
+def _from_inchi(s: str, name: str = "", keep_invalid: bool = False) -> tuple | None:
     s = s.strip()
     if not s:
         return None
     mol = MolFromInchi(s)
     if mol is None:
-        return None
+        return (None, name or s[:40]) if keep_invalid else None
     mol.SetProp("_Name", name or s[:40])
     return mol, name or s[:40]
 
@@ -71,7 +73,7 @@ def _read_sdf(path: str | Path, target_prop: str | None = None) -> list[tuple]:
     return results
 
 
-def parse_input(inp, fmt: str = "auto") -> list[tuple]:
+def parse_input(inp, fmt: str = "auto", keep_invalid: bool = False) -> list[tuple]:
     """
     Parse any supported input into a list of (mol, name) tuples.
 
@@ -81,16 +83,21 @@ def parse_input(inp, fmt: str = "auto") -> list[tuple]:
         The molecular input.
     fmt : str
         'auto' | 'smiles' | 'inchi' | 'sdf' | 'mol'
+    keep_invalid : bool, default False
+        If True, a SMILES or InChI that RDKit cannot parse gives a
+        ``(None, name)`` pair in its place instead of being dropped, so that
+        the output has one entry per input.  The prediction functions use this
+        to report the failure; blank lines and ``#`` comments are still skipped.
 
     Returns
     -------
-    list of (Chem.Mol, str) — (mol, name) pairs.
+    list of (Chem.Mol | None, str) — (mol, name) pairs.
     """
     # ── list / iterable ──────────────────────────────────────────────────────
     if isinstance(inp, (list, tuple)):
         out = []
         for item in inp:
-            out.extend(parse_input(item, fmt=fmt))
+            out.extend(parse_input(item, fmt=fmt, keep_invalid=keep_invalid))
         return out
 
     # ── RDKit Mol ─────────────────────────────────────────────────────────────
@@ -108,7 +115,7 @@ def parse_input(inp, fmt: str = "auto") -> list[tuple]:
             out = []
             with open(inp, "r", encoding="utf-8") as f:
                 for line in f:
-                    r = _from_smiles(line.strip())
+                    r = _from_smiles(line.strip(), keep_invalid=keep_invalid)
                     if r:
                         out.append(r)
             return out
@@ -120,14 +127,14 @@ def parse_input(inp, fmt: str = "auto") -> list[tuple]:
             # Multi-line InChI
             results = []
             for line in s.splitlines():
-                r = _from_inchi(line.strip())
+                r = _from_inchi(line.strip(), keep_invalid=keep_invalid)
                 if r:
                     results.append(r)
             return results
         # SMILES (possibly multi-line)
         results = []
         for line in s.splitlines():
-            r = _from_smiles(line.strip())
+            r = _from_smiles(line.strip(), keep_invalid=keep_invalid)
             if r:
                 results.append(r)
         return results

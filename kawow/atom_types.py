@@ -10,12 +10,16 @@ The Crippen *contributions* (logP values) are NOT used; only the SMARTS are
 used to count atom occurrences. New ridge-regression coefficients are fitted
 on the S01/S02 SDF training data (Naef & Acree, Liquids 2024).
 
-Naef special groups (beyond atom counts):
-  SG_HB_INTRAMOL  — number of intramolecular H-bond donor/acceptor pairs
+Naef special groups (beyond atom counts)::
+
+  SG_HB_INTRAMOL   — number of intramolecular H-bond donor/acceptor pairs
                      within 5 bonds (penalises self-sequestered polarity)
-  SG_ALKANE       — 1 if pure saturated hydrocarbon (C/H only, no rings)
-  SG_UNSAT_HC     — 1 if pure unsaturated hydrocarbon (C/H only, π bonds)
-  SG_EXTRA_COOH   — number of -COOH groups beyond the first
+  SG_ALKANE        — number of carbons if pure saturated acyclic hydrocarbon,
+                     0 otherwise
+  SG_UNSAT_HC      — number of carbons if pure unsaturated acyclic
+                     hydrocarbon, 0 otherwise
+  SG_EXTRA_COOH    — number of -COOH groups beyond the first
+  SG_EXTRA_OH      — number of -OH groups beyond the first
   SG_ENDOCYCLIC_CC — number of endocyclic C-C single bonds
 
 Atom types are parsed from the Crippen.txt data file shipped with RDKit.

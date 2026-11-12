@@ -19,9 +19,6 @@ import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import rdchem
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
-from rdkit import RDLogger
-
-RDLogger.DisableLog("rdApp.*")  
 
 DATA_DIR = Path(__file__).parent / "data"
 

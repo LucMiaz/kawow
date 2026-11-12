@@ -14,11 +14,22 @@ cd kawow
 pip install -e ".[dev]"
 ```
 
+### Optional dependencies
+
+```bash
+pip install "kawow[ml]"      # XGBoost and Keras: pfasgroups_naef_crippen_xgb and _nn models
+pip install "kawow[docs]"    # Sphinx, to build this documentation
+```
+
+The `mqg`, `naef_mqg` and `crippen_mqg` models also need the `molecular_quantum_graph` package (import name `mqg`).
+The `pfasgroups*` models also need the [PFASGroups](https://github.com/LucMiaz/PFASGroups) package (`pip install PFASGroups`) to compute descriptors for new molecules.
+
 ### Requirements
 
 - Python ≥ 3.10
 - [RDKit](https://www.rdkit.org/) ≥ 2022.9 (for molecular parsing and SMARTS matching)
 - NumPy ≥ 1.24
+- pandas ≥ 1.5 (reads the Naef & Acree parameter tables)
 - scikit-learn ≥ 1.3
 
 RDKit is most easily installed via conda:
