@@ -339,7 +339,7 @@ def run_models(
         except Exception as exc:
             init_errors[model_name] = str(exc)
 
-    pairs = parse_input(inp, fmt=fmt)
+    pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
     out_rows: list[dict[str, Any]] = []
 
     for mol, name in pairs:
@@ -356,6 +356,15 @@ def run_models(
             "models": {},
             "ok": False,
         }
+
+        if mol is None:   # unparseable SMILES/InChI: report it in its row
+            for model_name in selected:
+                row["models"][model_name] = {
+                    "model": model_name, "status": "error",
+                    "error": _INVALID_INPUT_MESSAGE, "ok": False,
+                }
+            out_rows.append(row)
+            continue
 
         for model_name in selected:
             if model_name in init_errors:
@@ -398,6 +407,14 @@ def run_models(
     return out_rows
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
+
+_INVALID_INPUT_MESSAGE = "invalid SMILES or InChI"
+
+
+def _invalid_input_result() -> dict:
+    """Prediction for an input RDKit could not parse; keeps outputs aligned with inputs."""
+    return {"status": "error", "error": _INVALID_INPUT_MESSAGE}
+
 
 def _build_Xy(sdf_path: str | Path, value_prop: str) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Load SDF, compute features, return (X, y, names). Skips failures."""
@@ -907,14 +924,14 @@ class PartitionCalculator:
         Each dict has keys: logKow, logKoa, logKaw, status[, error, name].
         """
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             try:
                 r["smiles"] = mol.GetProp("_SMILES") if mol.HasProp("_SMILES") else ""
-            except Exception:
+            except Exception:  # mol is None (invalid input) or has no such prop
                 pass
             results.append(r)
         if len(results) == 1:
@@ -1013,10 +1030,10 @@ class MQGPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1121,10 +1138,10 @@ class EnsemblePartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1255,10 +1272,10 @@ class PFASGroupsPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> dict | list[dict]:
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         if len(results) == 1:
@@ -1359,10 +1376,10 @@ class PFASGroupsRFPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results
@@ -1442,10 +1459,10 @@ class PFASGroupsXGBPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results
@@ -1535,10 +1552,10 @@ class PFASGroupsNNPartitionCalculator:
 
     def predict(self, inp, fmt: str = "auto") -> "dict | list[dict]":
         from .io import parse_input
-        pairs = parse_input(inp, fmt=fmt)
+        pairs = parse_input(inp, fmt=fmt, keep_invalid=True)
         results = []
         for mol, name in pairs:
-            r = self._predict_mol(mol)
+            r = self._predict_mol(mol) if mol is not None else _invalid_input_result()
             r["name"] = name
             results.append(r)
         return results[0] if len(results) == 1 else results
