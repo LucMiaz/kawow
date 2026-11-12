@@ -22,6 +22,7 @@ pip install "kawow[docs]"    # Sphinx, to build this documentation
 ```
 
 The `mqg`, `naef_mqg` and `crippen_mqg` models also need the `molecular_quantum_graph` package (import name `mqg`).
+The `pfasgroups*` models also need the [PFASGroups](https://github.com/LucMiaz/PFASGroups) package (`pip install PFASGroups`) to compute descriptors for new molecules.
 
 ### Requirements
 
