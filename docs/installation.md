@@ -28,6 +28,7 @@ The `mqg`, `naef_mqg` and `crippen_mqg` models also need the `molecular_quantum_
 - Python ≥ 3.10
 - [RDKit](https://www.rdkit.org/) ≥ 2022.9 (for molecular parsing and SMARTS matching)
 - NumPy ≥ 1.24
+- pandas ≥ 1.5 (reads the Naef & Acree parameter tables)
 - scikit-learn ≥ 1.3
 
 RDKit is most easily installed via conda:

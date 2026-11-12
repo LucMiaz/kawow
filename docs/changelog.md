@@ -1,5 +1,6 @@
 # Changelog
 ## 1.1.0 (2026-10-24)
+- `pandas` is now a core dependency: `kawow.smarts_model` imports it at module level, so `import kawow` (and the Read the Docs build) failed without it
 - Added `kawow.criteria` with two regulatory presets, `"uba"` (default, M as logKoc < 4.0) and `"clp"` (EU CLP Regulation, M as logKoc < 3.0, vM as logKoc < 2.0), and `get_criteria()` for custom thresholds
 - `run_models()` and `_classify_partition()` take a `criteria` argument; results report the preset used (`criteria`)
 - Added aquatic bioaccumulation flags (`is_B_aquatic`, `is_vB_aquatic`)
