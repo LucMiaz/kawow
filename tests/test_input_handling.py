@@ -39,3 +39,14 @@ def test_import_does_not_silence_rdkit():
 def test_import_does_not_prepend_to_sys_path():
     from kawow import pfasgroups_features as pf
     assert sys.path[0] != str(pf._PFASGROUPS_PATH)
+
+
+def test_shipped_pickles_do_not_depend_on_fitting_machine(tmp_path):
+    """The ensemble pickles store C:\\Users\\...\\naef2024_*.csv; resolve it locally."""
+    from kawow.model import _resolve_param_file, DATA_DIR
+    win = r"C:\Users\someone\git\kawow\kawow\data\naef2024_logkow_parameters.csv"
+    assert _resolve_param_file(win) == DATA_DIR / "naef2024_logkow_parameters.csv"
+    posix = "/home/someone/kawow/kawow/data/naef2024_logkoa_parameters.csv"
+    assert _resolve_param_file(posix) == DATA_DIR / "naef2024_logkoa_parameters.csv"
+    own = tmp_path / "custom.csv"; own.write_text("x")
+    assert _resolve_param_file(own) == own

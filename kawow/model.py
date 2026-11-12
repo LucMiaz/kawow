@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import pickle
 import warnings
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -761,6 +761,25 @@ def _load_pickle(path: Path) -> dict:
 
 # ── Naef group-count feature helpers (used by ensemble models) ────────────────
 
+def _resolve_param_file(path: str | Path) -> Path:
+    """Locate a Naef parameter CSV recorded in a model pickle.
+
+    The ensemble pickles store the path the CSV had when the model was fitted
+    (an absolute Windows path for the shipped models), which does not exist on
+    other machines. If that path is missing, use the file of the same name in
+    kawow's data directory. ``PureWindowsPath`` splits both Windows and POSIX
+    paths, so the name is found whichever system wrote the pickle.
+    """
+    p = Path(path)
+    if p.exists():
+        return p
+    local = DATA_DIR / PureWindowsPath(str(path)).name
+    if local.exists():
+        return local
+    raise FileNotFoundError(
+        f"Naef parameter file not found: {path} (nor {local})")
+
+
 def _compile_naef_patterns(param_csv_path: str | Path) -> list:
     """Compile a Naef parameter CSV into a list of (smarts_mol, pi, fnc) tuples.
 
@@ -771,7 +790,7 @@ def _compile_naef_patterns(param_csv_path: str | Path) -> list:
     import pandas as pd
     from . import smarts_model as _sm
 
-    df = pd.read_csv(param_csv_path)
+    df = pd.read_csv(_resolve_param_file(param_csv_path))
     patterns: list = []
     for _, row in df.iterrows():
         if row["Atom Type"] == "Const":
