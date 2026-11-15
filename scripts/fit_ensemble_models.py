@@ -247,7 +247,7 @@ def _fit_ridge_ensemble(
         "ensemble_type": ensemble_type,
         # File name only: kawow resolves it in its data directory, so the
         # pickle does not depend on where it was fitted.
-        "naef_param_file": Path(naef_param_file).name,
+        "naef_param_file": Path(naef_param_file).name if naef_param_file else None,
         "mqg_feature_cols": mqg_feature_cols,
         "fp_size": fp_size,
         "n_train": int(len(y)),

@@ -6,12 +6,12 @@ at import time:
 
     logkow_pfasgroups_model.pkl
     logkoa_pfasgroups_model.pkl
-    logkow_pfasgroups_mixed_model.pkl        (PFASGroups + Crippen features)
-    logkoa_pfasgroups_mixed_model.pkl
+    logkow_pfasgroups_crippen_model.pkl        (PFASGroups + Crippen features)
+    logkoa_pfasgroups_crippen_model.pkl
     logkow_pfasgroups_naef_model.pkl         (PFASGroups + Naef group counts)
     logkoa_pfasgroups_naef_model.pkl
-    logkow_pfasgroups_naef_mixed_model.pkl   (PFASGroups + Naef + Crippen)
-    logkoa_pfasgroups_naef_mixed_model.pkl
+    logkow_pfasgroups_naef_crippen_model.pkl   (PFASGroups + Naef + Crippen)
+    logkoa_pfasgroups_naef_crippen_model.pkl
 
 Run from the kawow repo root:
     python scripts/fit_pfasgroups_model.py
@@ -140,7 +140,7 @@ def main() -> None:
 
     print("[logKow] Fitting pfasgroups_mixed …")
     pipe_mix_kow = _fit_ridge(X_mix_kow, y_kow)
-    _save_model(pipe_mix_kow, DATA_DIR / "logkow_pfasgroups_mixed_model.pkl",
+    _save_model(pipe_mix_kow, DATA_DIR / "logkow_pfasgroups_crippen_model.pkl",
                 extra={"endpoint": "logKow", "n_train": len(y_kow),
                        "feature_dim": X_mix_kow.shape[1]})
 
@@ -152,7 +152,7 @@ def main() -> None:
 
     print("[logKow] Fitting pfasgroups_naef_mixed …")
     pipe_pg_naef_mix_kow = _fit_ridge(X_pg_naef_mix_kow, y_kow)
-    _save_model(pipe_pg_naef_mix_kow, DATA_DIR / "logkow_pfasgroups_naef_mixed_model.pkl",
+    _save_model(pipe_pg_naef_mix_kow, DATA_DIR / "logkow_pfasgroups_naef_crippen_model.pkl",
                 extra={"endpoint": "logKow", "n_train": len(y_kow),
                        "feature_dim": X_pg_naef_mix_kow.shape[1]})
 
@@ -172,7 +172,7 @@ def main() -> None:
 
     print("[logKoa] Fitting pfasgroups_mixed …")
     pipe_mix_koa = _fit_ridge(X_mix_koa, y_koa)
-    _save_model(pipe_mix_koa, DATA_DIR / "logkoa_pfasgroups_mixed_model.pkl",
+    _save_model(pipe_mix_koa, DATA_DIR / "logkoa_pfasgroups_crippen_model.pkl",
                 extra={"endpoint": "logKoa", "n_train": len(y_koa),
                        "feature_dim": X_mix_koa.shape[1]})
 
@@ -184,7 +184,7 @@ def main() -> None:
 
     print("[logKoa] Fitting pfasgroups_naef_mixed …")
     pipe_pg_naef_mix_koa = _fit_ridge(X_pg_naef_mix_koa, y_koa)
-    _save_model(pipe_pg_naef_mix_koa, DATA_DIR / "logkoa_pfasgroups_naef_mixed_model.pkl",
+    _save_model(pipe_pg_naef_mix_koa, DATA_DIR / "logkoa_pfasgroups_naef_crippen_model.pkl",
                 extra={"endpoint": "logKoa", "n_train": len(y_koa),
                        "feature_dim": X_pg_naef_mix_koa.shape[1]})
 
