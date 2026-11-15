@@ -160,7 +160,8 @@ def _build_endpoint_data(
         ys.append(value)
         X_kawow.append(x_crippen.astype(np.float32))
         X_mixed.append(x_mixed.astype(np.float32))
-        X_mqg.append(x_mqg_full[pure_mqg_pkl["feature_cols"]].astype(np.float32))
+        # all eigenvalues and ratios: _fit_predict_mqg selects the ratio features itself, per fold
+        X_mqg.append(x_mqg_full.astype(np.float32))
         X_winner.append(np.concatenate([x_naef, x_crippen.astype(np.float32), x_mqg_full[winner_pkl["mqg_feature_cols"]].astype(np.float32)]))
         pred_smarts.append(x_smarts)
         X_pfasgroups.append(x_pg)

@@ -4,10 +4,10 @@ All three models use the same feature matrix as ``pfasgroups_naef_mixed``:
   PFASGroups (77-dim) + Naef group counts + Crippen atom types (91-dim).
 
 Produces 6 files in kawow/data/:
-  logkow/logkoa_pfasgroups_naef_mixed_rf_model.pkl     — RandomForest pipeline
-  logkow/logkoa_pfasgroups_naef_mixed_xgb_model.pkl    — XGBoost pipeline
-  logkow/logkoa_pfasgroups_naef_mixed_nn_meta.pkl      — NN StandardScaler + metadata
-  logkow/logkoa_pfasgroups_naef_mixed_nn_model.keras   — Keras MLP (native format)
+  logkow/logkoa_pfasgroups_naef_crippen_rf_model.pkl     — RandomForest pipeline
+  logkow/logkoa_pfasgroups_naef_crippen_xgb_model.pkl    — XGBoost pipeline
+  logkow/logkoa_pfasgroups_naef_crippen_nn_meta.pkl      — NN StandardScaler + metadata
+  logkow/logkoa_pfasgroups_naef_crippen_nn_model.keras   — Keras MLP (native format)
 
 Run from the kawow repo root:
     python scripts/fit_pfasgroups_advanced_models.py [--skip-nn]
@@ -322,18 +322,18 @@ def main() -> None:
 
     print("[logKow] Fitting Random Forest …")
     m_rf_kow = _fit_and_save_rf(X_kow, y_kow, "logKow",
-                                 DATA_DIR / "logkow_pfasgroups_naef_mixed_rf_model.pkl")
+                                 DATA_DIR / "logkow_pfasgroups_naef_crippen_rf_model.pkl")
 
     print("[logKow] Fitting XGBoost …")
     m_xgb_kow = _fit_and_save_xgb(X_kow, y_kow, "logKow",
-                                    DATA_DIR / "logkow_pfasgroups_naef_mixed_xgb_model.pkl")
+                                    DATA_DIR / "logkow_pfasgroups_naef_crippen_xgb_model.pkl")
 
     if not args.skip_nn:
         print("[logKow] Fitting Keras NN …")
         m_nn_kow = _fit_and_save_nn(
             X_kow, y_kow, "logKow",
-            DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_meta.pkl",
-            DATA_DIR / "logkow_pfasgroups_naef_mixed_nn_model.keras",
+            DATA_DIR / "logkow_pfasgroups_naef_crippen_nn_meta.pkl",
+            DATA_DIR / "logkow_pfasgroups_naef_crippen_nn_model.keras",
         )
     else:
         m_nn_kow = {}
@@ -344,18 +344,18 @@ def main() -> None:
 
     print("[logKoa] Fitting Random Forest …")
     m_rf_koa = _fit_and_save_rf(X_koa, y_koa, "logKoa",
-                                 DATA_DIR / "logkoa_pfasgroups_naef_mixed_rf_model.pkl")
+                                 DATA_DIR / "logkoa_pfasgroups_naef_crippen_rf_model.pkl")
 
     print("[logKoa] Fitting XGBoost …")
     m_xgb_koa = _fit_and_save_xgb(X_koa, y_koa, "logKoa",
-                                    DATA_DIR / "logkoa_pfasgroups_naef_mixed_xgb_model.pkl")
+                                    DATA_DIR / "logkoa_pfasgroups_naef_crippen_xgb_model.pkl")
 
     if not args.skip_nn:
         print("[logKoa] Fitting Keras NN …")
         m_nn_koa = _fit_and_save_nn(
             X_koa, y_koa, "logKoa",
-            DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_meta.pkl",
-            DATA_DIR / "logkoa_pfasgroups_naef_mixed_nn_model.keras",
+            DATA_DIR / "logkoa_pfasgroups_naef_crippen_nn_meta.pkl",
+            DATA_DIR / "logkoa_pfasgroups_naef_crippen_nn_model.keras",
         )
     else:
         m_nn_koa = {}

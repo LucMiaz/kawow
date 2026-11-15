@@ -12,9 +12,11 @@ The `kawow` package of this repository (`pip install -e .` from the repository r
 
 | Dataset | File | In git | Source |
 |---|---|---|---|
-| Naef & Acree experimental log *K*ow (S01) and log *K*oa (S02) | `../tests/test_data/S01*.sdf`, `../tests/test_data/S02*.sdf` | yes | Supplementary data of Naef & Acree, *Liquids* **2024**, 4, 231–260, [doi:10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011) |
+| Naef & Acree experimental log *K*ow (S01) and log *K*oa (S02) | `../tests/test_data/S01*.sdf`, `../tests/test_data/S02*.sdf` | yes | Supplementary data of Naef & Acree, *Liquids* **2024**, 4, 231–260, [doi:10.3390/liquids4010011](https://doi.org/10.3390/liquids4010011), with the corrections of `../tests/test_data/naef2024_corrections.csv` (see below) |
 | Arp & Hale REACH substances with persistence categories and UFZ-LSER estimates | `data/arphale_hale_2022_lser.csv` | yes | See below |
 | C&L Inventory structures (181 746 SMILES) | `data/clinventory_molecules.csv` | **no** (~14 MB) | Zenodo, `https://doi.org/10.5281/zenodo.XXXXXXX` (TODO) |
+
+**Naef & Acree, corrected.** The files in `../tests/test_data/` are the published supplementary files with 50 records whose structure did not match the compound name replaced (30 compounds: 27 pesticides and drugs, and the 6:2, 8:2 and 10:2 fluorotelomer acrylates of S02) and 5 implausible log *K*ow values of S01 removed. `../tests/test_data/naef2024_corrections.csv` lists every change and its reason, and `../scripts/correct_naef_data.py` applies them to the published files. S01 has 3 365 records (common evaluation set n = 3 314); S02 keeps its 1 983 records (n = 1 956).
 
 **Arp & Hale.** `data/arphale_hale_2022_lser.csv` has one row per substance of Arp & Hale, *ACS Environ. Au* **2022**, 2, 482–509 ([doi:10.1021/acsenvironau.2c00024](https://doi.org/10.1021/acsenvironau.2c00024)), SI Table S1 (11 614 substances): name, CAS, InChIKey, SMILES, the PMT/vPvM screening outcomes under the UBA (`vPvM_UBA`) and EC (`vPvM_EC`) criteria, the geometric-average QSAR half-life (`P_avg_QSAR`), the acid/base/neutral class, and UFZ-LSER estimates of log *K*ow, log *K*oa and log *K*oc (2017 version of UFZ-LSER). TODO: describe how the UFZ-LSER log *K*oa values were obtained, since they are not part of the Arp & Hale SI.
 
@@ -54,6 +56,9 @@ python generate_tables.py                  # SI tables and gap counts -> outputs
 SI Tables S3 (model architectures) and S5 (software versions) are not generated.
 
 ## Notes on reproducibility
+
+- XGBoost depends on the processor architecture: with the same data, code and package versions, the ARM64 laptop of SI Table S5 and an x86-64 machine give models whose predictions differ by 0.1–0.2 log units on average (up to 1.6), and the C&L Inventory UBA gap count for XGBoost differs (69 against 101 with the uncorrected data). The thread count does not matter, and repeated fits on one machine are identical. The four other models agree to below 1e-5 across machines.
+- `../tests/out/benchmark_*_5model.csv` were regenerated with the corrected data on an x86-64 machine (2026-11-15).
 
 - The benchmark (`../tests/out/benchmark_*_5model.csv`) was regenerated on 2026-09-13; SI Table S4 of the submitted SI predates it, and XGBoost differs slightly (log *K*ow R² 0.9437 and RMSE 0.493 in the table, 0.9443 and 0.491 in the file).
 - The final-model predictions of the C&L Inventory for Crippen and XGBoost differ from those of the figures in the first manuscript draft (116 and 69 molecules in the UBA gap, against 107 and 87); the script that produced the earlier figures was not kept. Naef & Acree (105), the combined-ridge model (111) and Random Forest (48) are identical.

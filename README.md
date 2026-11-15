@@ -100,7 +100,7 @@ results = kawow.run_models("CCCCCC", criteria=custom)
 |-----------|-------|----------|-------------|-------------|-------------|
 | `crippen` | `PartitionCalculator` | Ridge regression on Crippen atom types + special groups | 0.898 | 0.937 | — |
 | `naef` | `NaefAcreePartitionCalculator` | Naef & Acree (2024) group additivity, published parameters (no fitting) | 0.857 | 0.777 | 0.654 |
-| `naef_crippen` | `NaefAcreeCrippenPartitionCalculator` | Ridge regression on Naef & Acree group counts + Crippen atom types | 0.938 | 0.943 | 0.912 |
+| `naef_crippen` | `NaefAcreeCrippenPartitionCalculator` | Ridge regression on Naef & Acree group counts + Crippen atom types | 0.938 | 0.943 | 0.913 |
 | `mqg` | `MQGPartitionCalculator` | Ridge regression on Naef & Acree + Crippen + MQG fingerprints | 0.940 | 0.941 | 0.913 |
 | `naef_mqg`, `crippen_mqg` | `EnsemblePartitionCalculator` | Ridge regression on MQG fingerprints + Naef & Acree or Crippen features | — | — | — |
 | `pfasgroups` | `PFASGroupsPartitionCalculator` | Ridge regression on PFASGroups descriptors | 0.785 | 0.896 | — |
@@ -111,26 +111,28 @@ results = kawow.run_models("CCCCCC", criteria=custom)
 | `pfasgroups_naef_crippen_xgb` | `PFASGroupsXGBPartitionCalculator` | XGBoost (early stopping), same features; needs `kawow[ml]` | 0.936 | 0.941 | — |
 | `pfasgroups_naef_crippen_nn` | `PFASGroupsNNPartitionCalculator` | Keras MLP [256-128-64], same features; needs `kawow[ml]` | 0.946 | 0.940 | — |
 
-log*K*ow and log*K*oa R² are from 5-fold cross-validation with shared folds on the common evaluation set of the Naef & Acree datasets (n = 3 319 for log*K*ow, S01; n = 1 956 for log*K*oa, S02), from [`tests/out/shared_fold_benchmark.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/shared_fold_benchmark.csv) (`scripts/shared_fold_benchmark.py`). `naef` uses the published parameters and is evaluated on the same molecules without fitting. log*K*aw R² is an external validation on the Naef & Acree S03 dataset (n = 2 130–2 150), which was not used for training. The old keys `naefacree` and `naefacree_mixed` still work and map to `naef` and `naef_crippen`.
+log*K*ow and log*K*oa R² are from 5-fold cross-validation with shared folds on the common evaluation set of the Naef & Acree datasets (n = 3 314 for log*K*ow, S01; n = 1 956 for log*K*oa, S02), from [`tests/out/shared_fold_benchmark.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/shared_fold_benchmark.csv) (`scripts/shared_fold_benchmark.py`), computed before the training data were corrected (see below) and not yet rerun; the five manuscript models below are up to date. `naef` uses the published parameters and is evaluated on the same molecules without fitting. log*K*aw = log*K*ow − log*K*oa is compared with the Naef & Acree S03 dataset (n = 2 130–2 150), which was not used for training. This is not a fully independent test: many log*K*oa values of S02 (from Ebert et al., *Environ. Sci. Technol.* 2023, 57, 976–984) were themselves derived from measured log*K*ow and log*K*aw, and S03 includes values below −10 that can only have been estimated. Against the PHYSPROP Henry's law constants of OPERA (697 compounds), log*K*aw R² is 0.80 for `naef_crippen`, `mqg` and `pfasgroups_naef_crippen`, 0.74 for `crippen` and 0.55 for `naef`; on the 148 of those compounds that are not in S03 it is 0.61–0.68 (0.40 for `naef`). The old keys `naefacree` and `naefacree_mixed` still work and map to `naef` and `naef_crippen`.
+
+**Training data.** The models are fitted on the supplementary data of Naef & Acree (2024), corrected: 50 records whose structure did not match the compound name now have the structure of the named compound, and five implausible log*K*ow values are removed. [`tests/test_data/naef2024_corrections.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/test_data/naef2024_corrections.csv) lists every change and its reason; [`scripts/correct_naef_data.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/correct_naef_data.py) applies them to the published files. Naef & Acree compiled their log*K*ow values mainly from Klopman et al. (1994) and Sangster, and their log*K*oa values mainly from Ebert et al. (2023).
 
 The Random Forest and XGBoost models of the manuscript (trained on Naef & Acree + Crippen features only) are part of the benchmark ([`scripts/benchmark_5model.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/benchmark_5model.py)) and are not available through `run_models()`.
 
 ### Benchmark of the five manuscript models
 
-5-fold cross-validation on the common evaluation set, from [`tests/out/benchmark_metrics_5model.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/benchmark_metrics_5model.csv) (`scripts/benchmark_5model.py`). AUC, AP (average precision), balanced accuracy and MCC classify `logKow ≥ 4.6` (aquatic B) and `logKoa ≥ 6` (B).
+5-fold cross-validation on the common evaluation set, from [`tests/out/benchmark_metrics_5model.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/out/benchmark_metrics_5model.csv) (`scripts/benchmark_5model.py`). AUC, AP (average precision), balanced accuracy and MCC classify `logKow ≥ 4.6` (aquatic B) and `logKoa ≥ 6` (B). XGBoost results depend on the processor architecture (see [`manuscript/README.md`](https://github.com/LucMiaz/kawow/blob/main/manuscript/README.md)); these were computed on x86-64.
 
 | Model | Endpoint | R² | RMSE | AUC | AP | Bal. Acc. | MCC |
 |-------|----------|----|------|-----|----|-----------|-----|
-| Crippen | log*K*ow | 0.898 | 0.663 | 0.992 | 0.961 | 0.913 | 0.863 |
-| Naef & Acree | log*K*ow | 0.857 | 0.785 | 0.987 | 0.956 | 0.934 | 0.873 |
-| Crippen + Naef & Acree | log*K*ow | 0.938 | 0.518 | 0.996 | 0.973 | 0.933 | 0.890 |
-| Random Forest | log*K*ow | 0.916 | 0.604 | 0.990 | 0.962 | 0.913 | 0.882 |
-| XGBoost | log*K*ow | 0.944 | 0.491 | 0.995 | 0.975 | 0.937 | 0.886 |
+| Crippen | log*K*ow | 0.906 | 0.636 | 0.992 | 0.964 | 0.921 | 0.872 |
+| Naef & Acree | log*K*ow | 0.861 | 0.775 | 0.990 | 0.959 | 0.936 | 0.876 |
+| Crippen + Naef & Acree | log*K*ow | 0.943 | 0.496 | 0.996 | 0.977 | 0.938 | 0.896 |
+| Random Forest | log*K*ow | 0.917 | 0.597 | 0.991 | 0.965 | 0.914 | 0.877 |
+| XGBoost | log*K*ow | 0.943 | 0.494 | 0.994 | 0.971 | 0.937 | 0.886 |
 | Crippen | log*K*oa | 0.937 | 0.737 | 0.990 | 0.994 | 0.944 | 0.888 |
-| Naef & Acree | log*K*oa | 0.777 | 1.387 | 0.974 | 0.985 | 0.932 | 0.860 |
-| Crippen + Naef & Acree | log*K*oa | 0.943 | 0.702 | 0.990 | 0.994 | 0.946 | 0.893 |
-| Random Forest | log*K*oa | 0.911 | 0.874 | 0.988 | 0.993 | 0.944 | 0.886 |
-| XGBoost | log*K*oa | 0.934 | 0.753 | 0.991 | 0.995 | 0.950 | 0.898 |
+| Naef & Acree | log*K*oa | 0.778 | 1.385 | 0.975 | 0.985 | 0.932 | 0.861 |
+| Crippen + Naef & Acree | log*K*oa | 0.943 | 0.701 | 0.990 | 0.994 | 0.946 | 0.892 |
+| Random Forest | log*K*oa | 0.911 | 0.876 | 0.988 | 0.993 | 0.941 | 0.880 |
+| XGBoost | log*K*oa | 0.934 | 0.755 | 0.991 | 0.995 | 0.950 | 0.900 |
 
 ---
 
@@ -187,11 +189,11 @@ for mol, coeffs in batch.results.items():
 
 | Dataset | Property | n | R² | RMSE |
 |---------|----------|---|-----|------|
-| S01 (full) | log*K*ow | 3 344 | 0.857 | 0.786 |
-| S02 (full) | log*K*oa | 1 983 | 0.785 | 1.387 |
-| S03 (full) | log*K*aw | 2 150 | 0.654 | 1.758 |
-| Common evaluation set | log*K*ow | 3 319 | 0.857 | 0.785 |
-| Common evaluation set | log*K*oa | 1 956 | 0.777 | 1.387 |
+| S01 (full) | log*K*ow | 3 339 | 0.860 | 0.776 |
+| S02 (full) | log*K*oa | 1 983 | 0.785 | 1.385 |
+| S03 (full) | log*K*aw | 2 150 | 0.654 | 1.757 |
+| Common evaluation set | log*K*ow | 3 314 | 0.861 | 0.775 |
+| Common evaluation set | log*K*oa | 1 956 | 0.778 | 1.385 |
 
 The remaining error is concentrated in specific chemotypes, notably heteroatom-rich agrochemical scaffolds.
 
