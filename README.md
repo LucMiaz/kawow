@@ -115,6 +115,18 @@ log*K*ow and log*K*oa R² are from 5-fold cross-validation with shared folds on 
 
 **Training data.** The models are fitted on the supplementary data of Naef & Acree (2024), corrected: 50 records whose structure did not match the compound name now have the structure of the named compound, and five implausible log*K*ow values are removed. [`tests/test_data/naef2024_corrections.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/test_data/naef2024_corrections.csv) lists every change and its reason; [`scripts/correct_naef_data.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/correct_naef_data.py) applies them to the published files. Naef & Acree compiled their log*K*ow values mainly from Klopman et al. (1994) and Sangster, and their log*K*oa values mainly from Ebert et al. (2023).
 
+**Check against PubChem.** [`scripts/check_naef_structures_pubchem.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/check_naef_structures_pubchem.py) resolves every compound name of S01-S03 in PubChem with [PubChemCompounds](https://github.com/LucMiaz/PubChemCompounds) and compares the returned structure with the structure as published and as corrected. The comparison is made at four levels: identical (InChIKey), same connectivity (stereochemistry or isotopes differ), same parent (salt or charge differs) and same canonical tautomer. The result for each of the 7 503 records is in [`tests/test_data/naef2024_pubchem_check.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/test_data/naef2024_pubchem_check.csv); names that PubChem does not resolve (665 records) are not compared.
+
+| | S01 | S02 | S03 |
+|---|---:|---:|---:|
+| Records (as published) | 3 370 | 1 983 | 2 150 |
+| Same compound as PubChem (identical, stereo/isotopes, parent or tautomer) | 2 890 | 1 807 | 1 995 |
+| Different compound, structure corrected | 12 | 21 | 17 |
+| Different compound, not corrected | 41 | 21 | 30 |
+| Name not resolved or structure not comparable | 427 | 134 | 108 |
+
+All 50 replaced structures differ from the PubChem structure of the name as published, and the corrected structure is the PubChem one (identical for 47, same connectivity for 3). The five removed records match PubChem, as expected, since they were removed for their values. The other 92 records that differ from PubChem (67 compounds) were checked by hand ([`tests/test_data/naef2024_pubchem_review.csv`](https://github.com/LucMiaz/kawow/blob/main/tests/test_data/naef2024_pubchem_review.csv)). Most are ambiguous names or wrong PubChem hits (26 compounds, e.g. esters such as phenyl acetate resolved to the acid anion, trade names such as Pivalone and Vernolate) and other forms or tautomers of the same compound (14). Three are name errors in which the structure and the value agree (the value is the PHYSPROP value of the structure drawn, e.g. lorazepam under the name lormetazepam). However, 20 compounds (27 records) are structure errors of the same kind as the corrected ones, three of them confirmed by the PHYSPROP value of the named compound (e.g. 2-methyl-8-quinolinol drawn as 7-methyl-8-quinolinol), and four are uncertain. These 24 compounds are not corrected in the current training data.
+
 The Random Forest and XGBoost models of the manuscript (trained on Naef & Acree + Crippen features only) are part of the benchmark ([`scripts/benchmark_5model.py`](https://github.com/LucMiaz/kawow/blob/main/scripts/benchmark_5model.py)) and are not available through `run_models()`.
 
 ### Benchmark of the five manuscript models

@@ -1,0 +1,68 @@
+name,files,n_records,category,note,sdf_smiles,pubchem_smiles,pubchem_cid,n_cids
+"2,3,3',4',5,6-Hexachlorobiphenyl","S01,S02,S03",3,ambiguous name or wrong PubChem hit,,Clc1ccc(-c2c(Cl)c(Cl)cc(Cl)c2Cl)cc1Cl,C1=CC(=CC(=C1)Cl)C2=C(C(=C(C(=C2Cl)Cl)Cl)Cl)Cl,632312,1
+2-Methoxyacetophenone,"S02,S03",2,ambiguous name or wrong PubChem hit,,COc1ccccc1C(C)=O,COCC(=O)C1=CC=CC=C1,77698,1
+3-Hydroxyphenylacetate,S01,1,ambiguous name or wrong PubChem hit,,CC(=O)Oc1cccc(O)c1,C1=CC(=CC(=C1)O)CC(=O)O,12122,2
+3-Methoxy-beta-nitrostyrene,S01,1,ambiguous name or wrong PubChem hit,,COc1cccc(/C=C/[N+](=O)[O-])c1,CC1=C(C=C(C=C1)CBr)F,2774603,1
+4-Methoxyphenylacetate,S01,1,ambiguous name or wrong PubChem hit,,COc1ccc(OC(C)=O)cc1,COC1=CC=C(C=C1)CC(=O)O,7690,1
+Accuretic,S01,1,ambiguous name or wrong PubChem hit,,NS(=O)(=O)c1cc2c(cc1Cl)NCNS2(=O)=O,CCOC(=O)[C@H](CCC1=CC=CC=C1)N[C@@H](C)C(=O)N2CC3=CC=CC=C3C[C@H]2C(=O)O.Cl,54891,2
+D-Ribose,S01,1,ambiguous name or wrong PubChem hit,,OC[C@@H]1O[C@@H](O)[C@@H](O)[C@H]1O,C1[C@H]([C@H]([C@H](C(O1)O)O)O)O,10975657,1
+DIDP,S01,1,ambiguous name or wrong PubChem hit,,CC(C)CCCCCCCOC(=O)c1ccccc1C(=O)OCCCCCCCC(C)C,C1[C@@H]([C@H](O[C@H]1N2C=NC3=C2N=CNC3=O)COP(=O)(O)OP(=O)(O)O)O,135398667,2
+Diphenylmethylamine,S01,1,ambiguous name or wrong PubChem hit,,NC(c1ccccc1)c1ccccc1,CN(C1=CC=CC=C1)C2=CC=CC=C2,11098,1
+Folbex,"S02,S03",2,ambiguous name or wrong PubChem hit,,CC(C)OC(=O)C(O)(c1ccc(Br)cc1)c1ccc(Br)cc1,CCOC(=O)C(C1=CC=C(C=C1)Cl)(C2=CC=C(C=C2)Cl)O,10522,1
+Isopropenylacetate,S01,1,ambiguous name or wrong PubChem hit,,C=C(C)OC(C)=O,CC(=C)CC(=O)[O-],18355900,1
+Isopropylacetate,"S01,S02,S03",3,ambiguous name or wrong PubChem hit,,CC(=O)OC(C)C,CC(C)CC(=O)[O-],3587356,1
+Kitazin,"S02,S03",2,ambiguous name or wrong PubChem hit,,CC(C)OP(=O)(OC(C)C)SCc1ccccc1,CCOP(=O)(OCC)SCC1=CC=CC=C1,25834,1
+Methyl t-pentyl ether,"S02,S03",2,ambiguous name or wrong PubChem hit,,CCC(C)(C)OC,CC(C)(C)COC,136871,1
+Methylchloroacetate,"S01,S03",2,ambiguous name or wrong PubChem hit,,COC(=O)CCl,CC(C(=O)[O-])Cl,14535399,1
+N-Nitrosoethylbutylamine,S02,1,ambiguous name or wrong PubChem hit,,CCCCN(CC)N=O,CCCCNCCN=O,91302634,1
+Penoxalin,"S01,S02,S03",3,ambiguous name or wrong PubChem hit,,CCC(CC)Nc1c([N+](=O)[O-])cc(C)c(C)c1[N+](=O)[O-],CCCCCCCC(=O)NC[C@@H](C(C)C)ON=NOC,156582402,1
+Phenylacetate,S01,1,ambiguous name or wrong PubChem hit,,CC(=O)Oc1ccccc1,C1=CC=C(C=C1)CC(=O)[O-],4409936,1
+Phenylformate,S01,1,ambiguous name or wrong PubChem hit,,O=COc1ccccc1,C1=CC=C(C=C1)C(=O)[O-],242,1
+Phenylglycerol,S01,1,ambiguous name or wrong PubChem hit,,OCC(O)(CO)c1ccccc1,C1=CC=C(C=C1)OCC(CO)O,10857,1
+Phthalide,S02,1,ambiguous name or wrong PubChem hit,,O=C1OCc2c(Cl)c(Cl)c(Cl)c(Cl)c21,C1C2=CC=CC=C2C(=O)O1,6885,1
+Pivalone,S01,1,ambiguous name or wrong PubChem hit,,CC(C)(C)C(=O)C(C)(C)C,C[C@]12CCC(=O)C=C1CC[C@@H]3[C@@H]2[C@H](C[C@]4([C@H]3CC[C@@]4(C(=O)CSC(=O)C(C)(C)C)O)C)O,15052414,1
+Starane,S02,1,ambiguous name or wrong PubChem hit,,CCCCCC[C@H](C)OC(=O)COc1nc(F)c(Cl)c(N)c1Cl,C(C(=O)O)OC1=NC(=C(C(=C1Cl)N)Cl)F,50465,1
+Vernolate,"S01,S02,S03",3,ambiguous name or wrong PubChem hit,,CCCSC(=O)N(CCC)CCC,CCCCCC1C(O1)C/C=C\CCCCCCCC(=O)[O-],25246088,1
+Vitamin B3,S01,1,ambiguous name or wrong PubChem hit,,NC(=O)c1cccnc1,C1=CC(=CN=C1)C(=O)O,938,1
+Vitamin B6,S01,1,ambiguous name or wrong PubChem hit,,Cc1ncc(CO)c(CO)c1O,CC1=C(C(=NC=C1COP(=O)([O-])[O-])C)O,104817,1
+"1,2,3-Propanetricarboxylic acid",S01,1,name error (structure and value consistent),truncated CAS name of citric acid; value equals PHYSPROP citric acid,O=C(O)CC(O)(CC(=O)O)C(=O)O,C(C(CC(=O)O)C(=O)O)C(=O)O,14925,1
+Lormetazepam,S01,1,name error (structure and value consistent),SDF and value are lorazepam (PHYSPROP 2.39),O=C1Nc2ccc(Cl)cc2C(c2ccccc2Cl)=N[C@@H]1O,CN1C2=C(C=C(C=C2)Cl)C(=NC(C1=O)O)C3=CC=CC=C3Cl,13314,1
+Propylisopropylacetamide,S01,1,name error (structure and value consistent),SDF equals the PHYSPROP structure for this value; PubChem resolves another isomer,CCCN(C(C)=O)C(C)C,CCCC(C(C)C)C(=O)N,107977,1
+1-Butyl-3-methylimidazolium bromide,S01,1,"same compound, other form or tautomer",,Br.CCCCn1ccn(C)[cH+]1,CCCCN1CN(C=C1)C.Br,25153273,1
+4-Aminoquinoline-1-oxide,S01,1,"same compound, other form or tautomer",,Nc1cc[n+]([O-])c2ccccc12,C1=CC=C2C(=C1)C(=N)C=CN2O,135874,1
+5-Diazouracil,S01,1,"same compound, other form or tautomer",,[N-]=[N+]=C1C=NC(=O)NC1=O,C1=C(C(=O)NC(=N1)[O-])[N+]#N,73266,1
+Benzimidazole-2-thione,S01,1,"same compound, other form or tautomer",,S=c1[nH]c2ccccc2[nH]1,C1=CC2=NC(=S)N=C2C=C1,22479291,1
+Chlorophacinone,S03,1,"same compound, other form or tautomer",,O=C1C(C(=O)[C@@H](c2ccccc2)c2ccc(Cl)cc2)=C(O)c2ccccc21,C1=CC=C(C=C1)C(C2=CC=C(C=C2)Cl)C(=O)C3C(=O)C4=CC=CC=C4C3=O,19402,1
+Drazoxolon,S03,1,"same compound, other form or tautomer",,CC1=NOC(=O)/C1=N\Nc1ccccc1Cl,CC1=C(C(=O)ON1)N=NC2=CC=CC=C2Cl,21929,1
+Lawsone,S01,1,"same compound, other form or tautomer",,O=C1C=C(O)C(=O)c2ccccc21,C1=CC=C2C(=C1)C(=CC(=O)C2=O)O,6755,1
+Mycobutin,S01,1,"same compound, other form or tautomer",,CO[C@H]1/C=C/O[C@]2(C)Oc3c(C)c(O)c4c(c3C2=O)C2=NC3(CCN(CC(C)C)CC3)NC2=C(NC(=O)/C(C)=C\C=C\[C@@H](C)[C@@H](O)[C@H](C)[C@H](O)[C@H](C)[C@@H](OC(C)=O)[C@H]1C)C4=O,C[C@H]1/C=C/C=C(\C(=O)N=C2C(=C3C(=C4C2=NC5(N4)CCN(CC5)CC(C)C)C6=C(C(=C3O)C)O[C@@](C6=O)(O/C=C/[C@@H]([C@H]([C@H]([C@@H]([C@@H]([C@@H]([C@H]1O)C)O)C)OC(=O)C)C)OC)C)O)/C,135398743,4
+Phthiocol,S01,1,"same compound, other form or tautomer",,CC1=C(O)C(=O)c2ccccc2C1=O,CC1=C(C2=CC=CC=C2C(=O)C1=O)O,10221,1
+Pyrasulfotole,"S02,S03",2,"same compound, other form or tautomer",,Cc1nn(C)c(O)c1C(=O)c1ccc(C(F)(F)F)cc1S(C)(=O)=O,CC1=C(C(=O)N(N1)C)C(=O)C2=C(C=C(C=C2)C(F)(F)F)S(=O)(=O)C,11693711,1
+Quatrimycin,S01,1,"same compound, other form or tautomer",,CN(C)[C@H]1C(O)=C(C(N)=O)C(=O)[C@]2(O)C(O)=C3C(=O)c4c(O)cccc4[C@](C)(O)[C@@H]3C[C@H]12,C[C@@]1([C@H]2C[C@H]3[C@H](C(=O)C(=C([C@]3(C(=O)C2=C(C4=C1C=CC=C4O)O)O)O)C(=O)N)N(C)C)O,54682506,1
+Tembotrione,S03,1,"same compound, other form or tautomer",,CS(=O)(=O)c1ccc(C(=O)C2=C(O)CCCC2=O)c(Cl)c1COCC(F)(F)F,CS(=O)(=O)C1=C(C(=C(C=C1)C(=O)C2C(=O)CCCC2=O)Cl)COCC(F)(F)F,11556911,1
+Vitamin C,S01,1,"same compound, other form or tautomer",,O=C1O[C@@H]([C@H](O)CO)C(=O)[C@@H]1O,C([C@@H]([C@@H]1C(=C(C(=O)O1)O)O)O)O,54670067,1
+Vitamin M,S01,1,"same compound, other form or tautomer",,N[c+]1[nH]c(=O)c2nc(CNc3ccc(C(=O)N[C@H](CCC(=O)O)C(=O)[O-])cc3)cnc2[nH]1,C1=CC(=CC=C1C(=O)N[C@@H](CCC(=O)O)C(=O)O)NCC2=CN=C3C(=N2)C(=O)NC(=N3)N,135398658,1
+"2,6-Dimethyl-N-nitrosomorpholine","S01,S02,S03",3,structure error (confirmed by PHYSPROP value),"SDF is the 3,5-dimethyl isomer; S01 value equals PHYSPROP value of the named compound",C[C@@H]1COC[C@H](C)N1N=O,CC1CN(CC(O1)C)N=O,15081,1
+2-Methyl-8-quinolinol,S01,1,structure error (confirmed by PHYSPROP value),SDF is 7-methyl-8-quinolinol; value equals PHYSPROP value of the named compound,Cc1ccc2cccnc2c1O,CC1=NC2=C(C=CC=C2O)C=C1,13224,1
+N-Methyl-N-benzylaniline,S01,1,structure error (confirmed by PHYSPROP value),"SDF is N-methyl-1,1-diphenylmethanamine; value equals PHYSPROP value of the named compound",CNC(c1ccccc1)c1ccccc1,CN(CC1=CC=CC=C1)C2=CC=CC=C2,69191,1
+Bioallethrin,S02,1,structure error (likely),extra CH2 between ring and ester oxygen,C=CCC1=C(C)[C@@H](COC(=O)[C@H]2[C@H](C=C(C)C)C2(C)C)CC1=O,CC1=C(C(=O)CC1OC(=O)[C@@H]2[C@H](C2(C)C)C=C(C)C)CC=C,15558638,1
+Cantharidic acid,S03,1,structure error (likely),two methyl groups missing (SDF is endothall),O=C(O)[C@@H]1[C@H](C(=O)O)[C@H]2CC[C@@H]1O2,C[C@]1([C@H]2CC[C@@H]([C@]1(C)C(=O)O)O2)C(=O)O,121475,1
+Clethodim,S03,1,structure error (likely),oxime N missing (enol ether drawn),CCS[C@@H](C)C[C@H]1CC(=O)C(/C(=C/OC/C=C/Cl)CC)=C(O)C1,CCC(=NOC/C=C/Cl)C1=C(CC(CC1=O)CC(C)SCC)O,136469009,1
+Crisfolatan,"S02,S03",2,structure error (likely),extra CH2 in the side chain (captafol),O=C1[C@H]2CC=CC[C@H]2C(=O)N1SC(Cl)(Cl)CC(Cl)Cl,C1C=CCC2C1C(=O)N(C2=O)SC(C(Cl)Cl)(Cl)Cl,17038,1
+Galaxolide,S03,1,structure error (likely),methyl at the wrong position of the pyran ring,C[C@H]1C(C)(C)c2cc3c(cc2C1(C)C)[C@H](C)OCC3,CC1COCC2=CC3=C(C=C12)C(C(C3(C)C)C)(C)C,91497,1
+Hydroprene,S03,1,structure error (likely),3-methyl group missing,CCOC(=O)/C=C/C=C/C[C@H](C)CCCC(C)C,CCOC(=O)/C=C(\C)/C=C/CC(C)CCCC(C)C,5372477,1
+Imazosulfuron,S01,1,structure error (likely),extra O between S and the ring (sulfonate drawn),COc1cc(OC)nc(NC(=O)NS(=O)(=O)Oc2c(Cl)nc3ccccn23)n1,COC1=CC(=NC(=N1)NC(=O)NS(=O)(=O)C2=C(N=C3N2C=CC=C3)Cl)OC,92433,1
+Isoleucinol,S01,1,structure error (likely),SDF is valinol,CC(C)[C@H](N)CO,CCC(C)C(CO)N,91202,2
+Isomethiozin,S03,1,structure error (likely),isobutyl instead of tert-butyl,CSc1nnc(CC(C)C)c(=O)n1/N=C/C(C)C,CC(C)/C=N/N1C(=O)C(=NN=C1SC)C(C)(C)C,9576097,1
+Mandestrobin,S03,1,structure error (likely),"2,4- instead of 2,5-dimethylphenoxy",CNC(=O)[C@@H](OC)c1ccccc1COc1ccc(C)cc1C,CC1=CC(=C(C=C1)C)OCC2=CC=CC=C2C(C(=O)NC)OC,10935908,1
+Methibenzuron,"S02,S03",2,structure error (likely),N-ethyl instead of N-methyl urea (methabenzthiazuron),CCNC(=O)N(C)c1nc2ccccc2s1,CNC(=O)N(C)C1=NC2=CC=CC=C2S1,29216,1
+Methylnitrosoacetamide,S03,1,structure error (likely),C-nitroso drawn instead of N-methyl-N-nitroso,C[C@H](N=O)C(N)=O,CC(=O)N(C)N=O,23898,1
+"N-Methyl-N,2,4,6-tetranitroaniline",S03,1,structure error (likely),nitro group on the ring instead of on N (tetryl),CNc1c([N+](=O)[O-])cc([N+](=O)[O-])c([N+](=O)[O-])c1[N+](=O)[O-],CN(C1=C(C=C(C=C1[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-])[N+](=O)[O-],10178,1
+Quercitrin,S01,1,structure error (likely),rhamnose attached through C4 instead of C1,C[C@@H]1O[C@@H](O)[C@H](O)[C@H](O)[C@H]1Oc1c(-c2ccc(O)c(O)c2)oc2cc(O)cc(O)c2c1=O,C[C@H]1[C@@H]([C@H]([C@H]([C@@H](O1)OC2=C(OC3=CC(=CC(=C3C2=O)O)O)C4=CC(=C(C=C4)O)O)O)O)O,5280459,1
+Quinomethionate,S03,1,structure error (likely),ring methyl missing,O=c1sc2nc3ccccc3nc2s1,CC1=CC2=C(C=C1)N=C3C(=N2)SC(=O)S3,17109,1
+Stirofos,"S02,S03",2,structure error (likely),extra CH2 between P-O and the vinyl group,COP(=O)(OC)OC/C(=C\Cl)c1cc(Cl)c(Cl)cc1Cl,COP(=O)(OC)O/C(=C\Cl)/C1=CC(=C(C=C1Cl)Cl)Cl,5284462,1
+"cis-1,3-Dichloropropene","S01,S02,S03",3,structure error (likely),"SDF is 1,2-dichloropropene; PHYSPROP 1,3-dichloropropene values are close",C/C(Cl)=C/Cl,C(/C=C\Cl)Cl,5280970,1
+Allylisopropylacetamide,S01,1,uncertain,SDF is N-allyl-N-propylacetamide; name may refer to 2-isopropylpent-4-enamide or N-allyl-N-isopropylacetamide,C=CCN(CCC)C(C)=O,CC(C)C(CC=C)C(=O)N,9297,1
+Benzoximate,"S02,S03",2,uncertain,isomeric; neither representation is fully clear,CCO/N=C(/OC(=O)c1ccccc1)c1c(OC)ccc(Cl)c1OC,CCN(C(=O)C1=C(C=CC(=C1OC)Cl)OC)OC(=O)C2=CC=CC=C2,34475,1
+Disugran,"S01,S02,S03",3,uncertain,"SDF is dicamba; S01 value equals PHYSPROP dicamba, S02/S03 not checked",COc1c(Cl)ccc(Cl)c1C(=O)O,COC1=C(C=CC(=C1C(=O)OC)Cl)Cl,81070,1
+Randox,"S02,S03",2,uncertain,SDF is dichlormid; the logKaw value appears closer to dichlormid than to allidochlor,C=CCN(CC=C)C(=O)C(Cl)Cl,C=CCN(CC=C)C(=O)CCl,7157,1
